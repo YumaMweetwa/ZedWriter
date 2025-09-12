@@ -1,0 +1,313 @@
+Goal
+
+Build “Zedwriter,” a student research assistance web app for Zambia. Deliver a zippable project with no proprietary builder runtime—pure HTML, CSS, and vanilla JS for the client; Firebase for backend services.
+
+Tech & Architecture
+
+Frontend: HTML, CSS, JS (no frameworks).
+
+Backend: Firebase Auth, Firestore, Cloud Storage, Cloud Functions, Callable + HTTPS APIs, Firestore & Storage Security Rules.
+
+Payments: Abstract payment module + webhook handler (supports mobile money providers via a single /payments/webhook endpoint; provider SDK can be swapped later).
+
+Hosting: Firebase Hosting (or Vercel static).
+
+Environments: .env.example with keys; do not commit real secrets.
+
+Core Pages (and Acceptance Criteria)
+
+Home
+
+Modern hero, brief “How it works,” trust badges, contact (email, WhatsApp deep-link, phone).
+
+Lighthouse ≥90 (Perf/Best/A11y/SEO), responsive (≤360px up to ≥1440px), keyboard-navigable.
+
+Pricing
+
+Cards showing: Proposal K500; Dissertation K1000 (promo until Jan 1); Data Analysis K400; Data Collection K400; Assignments = custom; Free titles + Free consult.
+
+“Get started” CTA → Submit Work (preselects type).
+
+Submit Work (3-step wizard)
+
+Step 1 — Details: Type dropdown (Proposal/Dissertation/Assignment). Common fields: names, student IDs, email, phone/WhatsApp, school, file format (default PDF), preferred date (≥today+3), payment method (Mobile Money/Bank), payment arrangement (50/50, etc.), comments.
+
+Type-specific:
+
+Proposal/Dissertation: Research Title, Supervisor Name, Supervisor Contact
+
+Assignment: Topic/Title, Field of Study, Instructor Name
+
+Validation: required fields; email/phone regex; max 500 chars comments.
+
+Step 2 — Files: Multi-upload (PDF/DOCX/PPT/XLSX), ≤20MB each, ≤6 files, progress UI, remove/replace.
+
+Step 3 — Review: Read-only summary; Back/Submit.
+
+Submit → progress bar (“Saving details”, “Uploading files”, “Completed”) → success toast + submission ID + link to Dashboard.
+
+Student Dashboard (auth-gated)
+
+Profile: view/edit name, phone, school; avatar upload (≤1MB jpg/png, client-side crop).
+
+Submissions: table with status chips (Pending → In Progress → Under Review → Completed), last updated, amount, action = view details (modal with all fields + file list).
+
+Payments: balance, total paid/owed, history list (date, amount, method, ref). Initiate payment → opens provider flow; after webhook, mark as “confirmed.”
+
+Chat with Admin: WhatsApp-like thread (text/voice-note/file messages). Files ≤10MB; voice note = browser MediaRecorder to .webm; typing indicator; read receipts (basic).
+
+Referrals: referral link copy, points, tiers; preferred payout method selector; rules summary (see Referral Logic).
+
+Announcements: timestamped list; unread badge; click to mark read.
+
+Topic Generator: domain → subdomain → department (+ custom), keywords (multi-select), study area, extra requirements; generate multiple topics; copy or “Use this” → prefill Submit Work.
+
+Materials
+
+9+ program tiles w/ images.
+
+Medicine & Surgery program: filters (Year: 111,121,211,221,311,321,422,421,511,521; Material Type: study notes, past papers (theory), past papers (practical/OSCE)).
+
+Search box (client + Firestore indexed).
+
+Paginated grid; upload by students → status = “In Review” until admin approves and categorizes.
+
+“Request a file” form creates an admin-visible ticket.
+
+Admin (role-gated)
+
+Overview: KPI cards—New/In Progress/Completed/Total submissions; New messages; Users total; Users with submissions; Referral stats: >200, 100–200, <100; Announcements summary.
+
+Submissions: table (student, details, type, files, date, status, action eye-icon → modal w/ all fields + download buttons). Edit status; add internal notes; assign staff.
+
+Messages: unified inbox by user; reply; attach files.
+
+Users: filter/sort; quick actions (reset password link, ban/unban, export CSV).
+
+Referrals: per-user points, history, payout requests (approve → creates Payment record).
+
+Announcements: create/edit/delete; publish to all (stores per-user read state).
+
+Materials Moderation: review uploads, set program/year/type; approve/reject (reason).
+
+Settings: General contacts (WhatsApp, phone, email), pricing, referral rates, security (2FA toggle), and Program Configuration (create/edit/delete programs, define filter facets, upload program images).
+
+Data Models (Firestore)
+
+users/{uid}: displayName, email, phone, school, role('user'|'admin'), avatarUrl, referralCode, referredBy, points, payoutMethod, createdAt, updatedAt
+
+submissions/{id}: uid, type('proposal'|'dissertation'|'assignment'), commonFields{...}, typeFields{...}, preferredDate, paymentMethod, paymentArrangement, comments, status('pending'|'in_progress'|'under_review'|'completed'), amount, files[ {path,name,size,contentType} ], createdAt, updatedAt
+
+messages/{threadId} + messages/{threadId}/entries/{msgId}: thread meta per user/admin; entries have from('user'|'admin'), type('text'|'file'|'voice'), text, file{...}, createdAt, readBy
+
+payments/{id}: uid, submissionId?, amount, currency('ZMW'), method('mobile_money'|'bank'), provider('providerX'), providerRef, status('initiated'|'confirmed'|'failed'|'refunded'), createdAt, updatedAt
+
+referrals/{id}: ownerUid, event('signup'|'proposal_paid'|'dissertation_paid'), deltaPoints, sourceUid, createdAt
+
+announcements/{id}: title, body, createdAt, createdBy
+
+announcement_reads/{id}: announcementId, uid, readAt
+
+materials/{id}: program, year, type, title, description, file{path,...}, uploadedBy, status('in_review'|'published'|'rejected'), createdAt, updatedAt
+
+file_requests/{id}: uid, program, requestText, status('open'|'closed'), createdAt
+
+Indexes: composite on submissions.status+createdAt, materials.program+year+type, messages.threadId+createdAt, payments.status+createdAt.
+
+Referral Logic
+
+Base: 1 point = K1; withdraw at ≥200 points.
+
+Events:
+
+New signup via referral link → +2 points to referrer.
+
+Referred user pays for proposal → +25.
+
+Referred user pays for dissertation → +50.
+
+Anti-abuse: each event type counted once per referred user; webhooks must verify provider signature; IP/device fingerprint heuristics to flag abuse (store flags in users.{riskScore}).
+
+Validation & Limits
+
+Emails and phone numbers regex; Zambia numbers begin +260…
+
+File types: .pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx; sizes: ≤20MB (submissions), ≤10MB (chat/file), ≤1MB (avatars).
+
+Comments ≤500 chars; study area ≤120 chars; keywords ≤12 selected.
+
+Rate-limit submission attempts: ≤3/min per IP (Cloud Function check + Firestore counter).
+
+Security (must implement)
+
+Auth: Firebase Auth (Email/Password + Google).
+
+RBAC: Firestore/Functions server-side checks: only owner can read/write their resources; only admins can see everything.
+
+PII: store minimal PII; never expose student IDs in public collections; all downloads require auth & rule check.
+
+Audit: write admin actions to audit_logs (who, what, when).
+
+Rules: deny writes with unexpected fields; validate file metadata on upload (contentType/size).
+
+Webhooks: verify provider signature; idempotent by providerRef; never trust client-side payment “success.”
+
+Performance & A11y
+
+LCP < 2.5s (3G Fast); JS ≤ 150KB gz total per route; images lazy-loaded; compress/crop uploads client-side.
+
+Tab order logical; focus states visible; ARIA labels on interactive elements; prefers-reduced-motion respected.
+
+Developer Deliverables
+
+Zip-ready static site; no hidden dependencies.
+
+/functions with:
+
+POST /payments/webhook (verify signature, write payments, award referral points).
+
+Callable: adminUpdateStatus, generateReferralLink, createAnnouncement, moderateMaterial, etc.
+
+.env.example with: FIREBASE_API_KEY, FIREBASE_PROJECT_ID, PAYMENTS_PROVIDER_PUBLIC_KEY, PAYMENTS_PROVIDER_WEBHOOK_SECRET, etc.
+
+README.md: setup (Firebase init, rules deploy, functions deploy, envs, running locally), DNS/custom domain steps.
+
+Accessibility & Lighthouse report snapshot.
+
+Test plan: manual cases per page (form validation, upload errors, payment success/fail, role checks).
+
+UI/UX Must-Haves
+
+Clean, student-friendly; card-based layout; subtle animations (reduced for motion-sensitive).
+
+Navbar: centered items; left logo; right avatar dropdown (“Hi, {FirstName}”, Manage Account, Sign out).
+
+Toasts for success/error; skeleton loaders; empty-state illustrations.
+
+Consistent spacing scale and typographic hierarchy.
+
+Program Configuration (Admin → Settings)
+
+CRUD programs; define filter facets per program (e.g., for Medicine: Year, Material Type).
+
+Upload/replace program images (stored under programs/{program}/image.*).
+
+Changes reflect immediately in Materials filters.
+
+Minimal Code Stubs the builder must include
+
+Referral link: /signup?ref={code} generator and parser.
+
+Client payment start: startPayment({amount, method}) → opens provider checkout, on return show “pending confirmation” until webhook flips status.
+
+Topic generator hook: generateTopics(payload) placeholder that currently returns mock topics; later swap to server AI (e.g., Gemini) via Cloud Function.
+
+Progress UI component: used in submit wizard + uploads.
+
+Firebase Rules (include and deploy)
+
+Firestore (excerpt)
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow list: if false;
+    }
+
+    match /submissions/{id} {
+      allow create: if isSignedIn();
+      allow read, update: if isOwner(resource.data.uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /messages/{threadId} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.resource.data.participants.hasOnly([request.auth.uid]));
+    }
+    match /messages/{threadId}/entries/{msgId} {
+      allow read, create: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{id} {
+      allow create: if isSignedIn();
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /announcements/{id} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /announcement_reads/{id} {
+      allow read, create: if isSignedIn() && (request.resource.data.uid == request.auth.uid);
+    }
+
+    match /materials/{id} {
+      allow read: if true;
+      allow create: if isSignedIn(); // auto-sets status='in_review'
+      allow update, delete: if isAdmin();
+    }
+
+    match /file_requests/{id} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+  }
+}
+
+
+Storage (excerpt)
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+
+    match /uploads/{uid}/{allPaths=**} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isSignedIn()
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType.matches('application/(pdf|msword|vnd.openxmlformats.*)|image/(png|jpeg)|audio/webm');
+    }
+
+    match /programs/{program}/{file} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
+
+Done-Definition Checklist (use this to QA)
+
+ All forms validate with helpful errors; blocked on bad inputs.
+
+ Files respect type/size; progress shown; cancellable.
+
+ Submission creates Firestore doc + Storage files; dashboard reflects immediately.
+
+ Status updates by admin reflect in user dashboard in real time.
+
+ Payment init + webhook update payment + referral points idempotently.
+
+ Chat supports text/voice/file; unread badges; images/files downloadable with auth.
+
+ Materials list/filter/search/paginate; uploads flow to moderation.
+
+ Announcements publish + per-user read state.
+
+ RBAC enforced by rules and by UI (no admin UI for non-admins).
+
+ Lighthouse ≥90; a11y AA; works on Chrome/Edge/Firefox/Safari mobile/desktop.
+
+ Zip contains only HTML/CSS/JS assets + README + env example + functions folder.
