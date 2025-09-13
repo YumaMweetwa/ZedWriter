@@ -23,6 +23,7 @@ export const Navigation = () => {
     { href: '/', label: 'Home' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/materials', label: 'Materials' },
+    { href: '/firebase-demo', label: 'Firebase Demo' },
     ...(user ? [{ href: '/dashboard', label: 'Dashboard' }] : []),
   ];
 

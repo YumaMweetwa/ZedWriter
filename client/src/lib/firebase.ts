@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut, User, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // Check if Firebase environment variables are configured
 const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
@@ -9,12 +9,12 @@ const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
 // Firebase configuration with provided settings
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: "improvedzedwriter.firebaseapp.com",
-  projectId: "improvedzedwriter",
-  storageBucket: "improvedzedwriter.firebasestorage.app",
-  messagingSenderId: "1001779186944",
-  appId: "1:1001779186944:web:055ad830723a01bf1177e5",
-  measurementId: "G-GG14E34Q6Q",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "improvedzedwriter.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "improvedzedwriter.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1001779186944",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1001779186944:web:055ad830723a01bf1177e5",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-GG14E34Q6Q",
 };
 
 let app: any = null;
@@ -91,6 +91,46 @@ export const getUserDocument = async (uid: string) => {
   }
   
   return null;
+};
+
+// Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
+
+// Google Sign In
+export const signInWithGoogle = async () => {
+  if (!auth) {
+    throw new Error('Firebase auth not initialized');
+  }
+  
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    
+    // Create user document in Firestore if it doesn't exist
+    await createUserDocument(user);
+    
+    return user;
+  } catch (error) {
+    console.error('Error signing in with Google:', error);
+    throw error;
+  }
+};
+
+// File Upload to Firebase Storage
+export const uploadFile = async (file: File, path: string) => {
+  if (!storage) {
+    throw new Error('Firebase storage not initialized');
+  }
+  
+  try {
+    const fileRef = ref(storage, path);
+    const snapshot = await uploadBytes(fileRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    throw error;
+  }
 };
 
 // Sign out

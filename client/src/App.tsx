@@ -12,6 +12,7 @@ import { TopicGeneratorPage } from '@/pages/TopicGeneratorPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ChatPage } from '@/pages/ChatPage';
+import { FirebaseDemo } from '@/pages/FirebaseDemo';
 import { SubmissionWizard } from '@/components/SubmissionWizard';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/dashboard" component={DashboardPage} />
                 <Route path="/admin" component={AdminPage} />
                 <Route path="/chat" component={ChatPage} />
+                <Route path="/firebase-demo" component={FirebaseDemo} />
                 <Route path="/submit">
                   {() => <SubmissionWizard preselectedType={getPreselectedType()} />}
                 </Route>

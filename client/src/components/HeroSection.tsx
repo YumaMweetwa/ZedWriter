@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 export const HeroSection = () => {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export const HeroSection = () => {
             <p className="text-xl text-muted-foreground mb-8">
               Zambia's premier student research assistance platform. Get professional help with your proposals, dissertations, data analysis, and assignments from experienced academic writers.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 mb-12">
+            <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <Link href={user ? "/submit" : "/auth/signup"}>
                 <Button size="lg" className="w-full sm:w-auto" data-testid="hero-get-started">
                   <i className="fas fa-rocket mr-2"></i>
@@ -31,6 +32,22 @@ export const HeroSection = () => {
                 </Button>
               </Link>
             </div>
+            
+            {!user && (
+              <div className="mb-8">
+                <div className="text-center mb-4">
+                  <span className="text-sm text-muted-foreground">Or sign in instantly with:</span>
+                </div>
+                <div className="max-w-sm mx-auto">
+                  <GoogleSignInButton 
+                    onSuccess={() => {
+                      // User will be redirected to dashboard through AuthContext
+                      console.log('Google sign-in successful');
+                    }}
+                  />
+                </div>
+              </div>
+            )}
             {/* Trust badges */}
             <div className="flex items-center space-x-6 text-muted-foreground">
               <div className="flex items-center">
