@@ -4,19 +4,17 @@ import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Check if Firebase environment variables are configured
-const hasFirebaseConfig = !!(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID &&
-  import.meta.env.VITE_FIREBASE_APP_ID
-);
+const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
 
-// Use placeholder config if Firebase keys are not provided
+// Firebase configuration with provided settings
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project",
-  storageBucket: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "demo-project"}.firebasestorage.app`,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "demo-app-id",
+  authDomain: "improvedzedwriter.firebaseapp.com",
+  projectId: "improvedzedwriter",
+  storageBucket: "improvedzedwriter.firebasestorage.app",
+  messagingSenderId: "1001779186944",
+  appId: "1:1001779186944:web:055ad830723a01bf1177e5",
+  measurementId: "G-GG14E34Q6Q",
 };
 
 let app: any = null;

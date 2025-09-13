@@ -14,9 +14,18 @@ import {
   type Referral,
   type InsertReferral,
   type Payment,
-  type InsertPayment
+  type InsertPayment,
+  users,
+  submissions,
+  materials,
+  chatRooms,
+  messages,
+  announcements,
+  referrals,
+  payments
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, like, desc, count, sum } from "drizzle-orm";
 
 // Enhanced storage interface with all required methods
 export interface IStorage {
@@ -72,194 +81,60 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private submissions: Map<string, Submission>;
-  private materials: Map<string, Material>;
-  private chatRooms: Map<string, ChatRoom>;
-  private messages: Map<string, Message>;
-  private announcements: Map<string, Announcement>;
-  private referrals: Map<string, Referral>;
-  private payments: Map<string, Payment>;
-
+// Referenced from javascript_database blueprint integration
+export class DatabaseStorage implements IStorage {
   constructor() {
-    this.users = new Map();
-    this.submissions = new Map();
-    this.materials = new Map();
-    this.chatRooms = new Map();
-    this.messages = new Map();
-    this.announcements = new Map();
-    this.referrals = new Map();
-    this.payments = new Map();
-    
-    // Initialize with some sample data
-    this.initializeSampleData();
-  }
-
-  private initializeSampleData() {
-    // Create sample admin user
-    const adminUser: User = {
-      id: randomUUID(),
-      firebaseUid: 'admin-firebase-uid',
-      email: 'admin@zedwriter.zm',
-      firstName: 'Admin',
-      lastName: 'User',
-      studentId: null,
-      phone: null,
-      school: null,
-      role: 'admin',
-      profilePicture: null,
-      referralCode: 'ADMIN001',
-      referralPoints: 0,
-      totalPaid: 0,
-      totalOwed: 0,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.users.set(adminUser.id, adminUser);
-
-    // Create sample materials
-    const sampleMaterials: Material[] = [
-      {
-        id: randomUUID(),
-        title: 'Anatomy Study Notes - Cardiovascular System',
-        description: 'Comprehensive notes covering heart anatomy and physiology',
-        program: 'medicine',
-        year: '211',
-        type: 'study_notes',
-        fileName: 'anatomy-cardiovascular.pdf',
-        fileSize: 2400000,
-        filePath: '/materials/anatomy-cardiovascular.pdf',
-        uploadedBy: adminUser.id,
-        isApproved: true,
-        downloadCount: 45,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: randomUUID(),
-        title: 'Pharmacology Past Paper 2023',
-        description: 'End of year examination with answer key',
-        program: 'medicine',
-        year: '311',
-        type: 'past_papers_theory',
-        fileName: 'pharmacology-2023.pdf',
-        fileSize: 1800000,
-        filePath: '/materials/pharmacology-2023.pdf',
-        uploadedBy: adminUser.id,
-        isApproved: true,
-        downloadCount: 67,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-
-    sampleMaterials.forEach(material => {
-      this.materials.set(material.id, material);
-    });
-
-    // Create sample announcements
-    const sampleAnnouncements: Announcement[] = [
-      {
-        id: randomUUID(),
-        title: 'New Year Promotion Extended!',
-        content: 'Great news! We\'ve extended our dissertation discount until January 15th. Get your dissertation assistance for just K1000 instead of K1200.',
-        type: 'promotion',
-        isActive: true,
-        createdBy: adminUser.id,
-        createdAt: new Date()
-      },
-      {
-        id: randomUUID(),
-        title: 'New Materials Added to Library',
-        content: 'We\'ve added new study materials for Medicine & Surgery programs, including Year 5 past papers and clinical case studies.',
-        type: 'general',
-        isActive: true,
-        createdBy: adminUser.id,
-        createdAt: new Date()
-      }
-    ];
-
-    sampleAnnouncements.forEach(announcement => {
-      this.announcements.set(announcement.id, announcement);
-    });
+    // No initialization needed for database storage
   }
 
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.email === username);
+    const [user] = await db.select().from(users).where(eq(users.email, username));
+    return user || undefined;
   }
 
   async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.firebaseUid === firebaseUid);
+    const [user] = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = {
-      ...insertUser,
-      id,
-      referralPoints: 0,
-      totalPaid: 0,
-      totalOwed: 0,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    const updatedUser = { ...user, ...updates, updatedAt: new Date() };
-    this.users.set(id, updatedUser);
-    return updatedUser;
+    const [user] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return user;
   }
 
   // Submission operations
   async getSubmission(id: string): Promise<Submission | undefined> {
-    return this.submissions.get(id);
+    const [submission] = await db.select().from(submissions).where(eq(submissions.id, id));
+    return submission || undefined;
   }
 
   async getSubmissionsByUser(userId: string): Promise<Submission[]> {
-    return Array.from(this.submissions.values()).filter(submission => submission.userId === userId);
+    return await db.select().from(submissions).where(eq(submissions.userId, userId)).orderBy(desc(submissions.createdAt));
   }
 
   async getAllSubmissions(): Promise<Submission[]> {
-    return Array.from(this.submissions.values());
+    return await db.select().from(submissions).orderBy(desc(submissions.createdAt));
   }
 
   async createSubmission(insertSubmission: InsertSubmission): Promise<Submission> {
-    const id = randomUUID();
-    const submission: Submission = {
-      ...insertSubmission,
-      id,
-      status: 'pending',
-      paidAmount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.submissions.set(id, submission);
+    const [submission] = await db.insert(submissions).values(insertSubmission).returning();
     return submission;
   }
 
   async updateSubmission(id: string, updates: Partial<Submission>): Promise<Submission> {
-    const submission = this.submissions.get(id);
-    if (!submission) {
-      throw new Error('Submission not found');
-    }
-    const updatedSubmission = { ...submission, ...updates, updatedAt: new Date() };
-    this.submissions.set(id, updatedSubmission);
-    return updatedSubmission;
+    const [submission] = await db.update(submissions).set(updates).where(eq(submissions.id, id)).returning();
+    return submission;
   }
 
   // Material operations
@@ -269,142 +144,85 @@ export class MemStorage implements IStorage {
     type?: string;
     search?: string;
   }): Promise<Material[]> {
-    let materials = Array.from(this.materials.values()).filter(material => material.isApproved);
+    let query = db.select().from(materials).where(eq(materials.isApproved, true));
 
+    const conditions = [];
     if (filters.program) {
-      materials = materials.filter(material => material.program === filters.program);
+      conditions.push(eq(materials.program, filters.program));
     }
     if (filters.year) {
-      materials = materials.filter(material => material.year === filters.year);
+      conditions.push(eq(materials.year, filters.year));
     }
     if (filters.type) {
-      materials = materials.filter(material => material.type === filters.type);
+      conditions.push(eq(materials.type, filters.type));
     }
     if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      materials = materials.filter(material => 
-        material.title.toLowerCase().includes(searchLower) ||
-        (material.description && material.description.toLowerCase().includes(searchLower))
-      );
+      conditions.push(like(materials.title, `%${filters.search}%`));
     }
 
-    return materials;
+    if (conditions.length > 0) {
+      query = db.select().from(materials).where(and(eq(materials.isApproved, true), ...conditions));
+    }
+
+    return await query.orderBy(desc(materials.createdAt));
   }
 
   async createMaterial(insertMaterial: InsertMaterial): Promise<Material> {
-    const id = randomUUID();
-    const material: Material = {
-      ...insertMaterial,
-      id,
-      isApproved: false,
-      downloadCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.materials.set(id, material);
+    const [material] = await db.insert(materials).values(insertMaterial).returning();
     return material;
   }
 
   async updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
-    const material = this.materials.get(id);
-    if (!material) {
-      throw new Error('Material not found');
-    }
-    const updatedMaterial = { ...material, ...updates, updatedAt: new Date() };
-    this.materials.set(id, updatedMaterial);
-    return updatedMaterial;
+    const [material] = await db.update(materials).set(updates).where(eq(materials.id, id)).returning();
+    return material;
   }
 
   // Chat operations
   async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
-    return Array.from(this.chatRooms.values()).filter(room => room.userId === userId);
+    return await db.select().from(chatRooms).where(eq(chatRooms.userId, userId)).orderBy(desc(chatRooms.updatedAt));
   }
 
-  async createChatRoom(insertRoom: InsertChatRoom): Promise<ChatRoom> {
-    const id = randomUUID();
-    const room: ChatRoom = {
-      ...insertRoom,
-      id,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.chatRooms.set(id, room);
-    return room;
+  async createChatRoom(insertChatRoom: InsertChatRoom): Promise<ChatRoom> {
+    const [chatRoom] = await db.insert(chatRooms).values(insertChatRoom).returning();
+    return chatRoom;
   }
 
   async getMessagesByRoom(roomId: string): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .filter(message => message.roomId === roomId)
-      .sort((a, b) => a.createdAt!.getTime() - b.createdAt!.getTime());
+    return await db.select().from(messages).where(eq(messages.roomId, roomId)).orderBy(messages.createdAt);
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const id = randomUUID();
-    const message: Message = {
-      ...insertMessage,
-      id,
-      isRead: false,
-      createdAt: new Date()
-    };
-    this.messages.set(id, message);
+    const [message] = await db.insert(messages).values(insertMessage).returning();
     return message;
   }
 
   // Announcement operations
   async getAnnouncements(): Promise<Announcement[]> {
-    return Array.from(this.announcements.values())
-      .filter(announcement => announcement.isActive)
-      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    return await db.select().from(announcements).where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt));
   }
 
   async createAnnouncement(insertAnnouncement: InsertAnnouncement): Promise<Announcement> {
-    const id = randomUUID();
-    const announcement: Announcement = {
-      ...insertAnnouncement,
-      id,
-      isActive: true,
-      createdAt: new Date()
-    };
-    this.announcements.set(id, announcement);
+    const [announcement] = await db.insert(announcements).values(insertAnnouncement).returning();
     return announcement;
   }
 
   // Referral operations
   async getReferralsByUser(userId: string): Promise<Referral[]> {
-    return Array.from(this.referrals.values())
-      .filter(referral => referral.referrerId === userId)
-      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    return await db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt));
   }
 
   async createReferral(insertReferral: InsertReferral): Promise<Referral> {
-    const id = randomUUID();
-    const referral: Referral = {
-      ...insertReferral,
-      id,
-      createdAt: new Date()
-    };
-    this.referrals.set(id, referral);
+    const [referral] = await db.insert(referrals).values(insertReferral).returning();
     return referral;
   }
 
   // Payment operations
   async getPaymentsByUser(userId: string): Promise<Payment[]> {
-    return Array.from(this.payments.values())
-      .filter(payment => payment.userId === userId)
-      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    return await db.select().from(payments).where(eq(payments.userId, userId)).orderBy(desc(payments.createdAt));
   }
 
   async createPayment(insertPayment: InsertPayment): Promise<Payment> {
-    const id = randomUUID();
-    const payment: Payment = {
-      ...insertPayment,
-      id,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    this.payments.set(id, payment);
+    const [payment] = await db.insert(payments).values(insertPayment).returning();
     return payment;
   }
 
@@ -416,24 +234,20 @@ export class MemStorage implements IStorage {
     totalRevenue: number;
     activeUsers: number;
   }> {
-    const totalUsers = this.users.size;
-    const totalSubmissions = this.submissions.size;
-    const pendingSubmissions = Array.from(this.submissions.values())
-      .filter(submission => submission.status === 'pending').length;
-    const totalRevenue = Array.from(this.submissions.values())
-      .filter(submission => submission.status === 'completed')
-      .reduce((sum, submission) => sum + submission.amount, 0);
-    const activeUsers = Array.from(this.users.values())
-      .filter(user => user.isActive).length;
+    const [userCount] = await db.select({ count: count(users.id) }).from(users);
+    const [submissionCount] = await db.select({ count: count(submissions.id) }).from(submissions);
+    const [pendingCount] = await db.select({ count: count(submissions.id) }).from(submissions).where(eq(submissions.status, 'pending'));
+    const [revenueSum] = await db.select({ sum: sum(submissions.paidAmount) }).from(submissions);
+    const [activeUserCount] = await db.select({ count: count(users.id) }).from(users).where(eq(users.isActive, true));
 
     return {
-      totalUsers,
-      totalSubmissions,
-      pendingSubmissions,
-      totalRevenue,
-      activeUsers
+      totalUsers: userCount.count || 0,
+      totalSubmissions: submissionCount.count || 0,
+      pendingSubmissions: pendingCount.count || 0,
+      totalRevenue: Number(revenueSum.sum || 0),
+      activeUsers: activeUserCount.count || 0,
     };
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
