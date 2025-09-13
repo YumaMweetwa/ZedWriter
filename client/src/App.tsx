@@ -14,6 +14,9 @@ import { AdminPage } from '@/pages/AdminPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { FirebaseDemo } from '@/pages/FirebaseDemo';
 import { AuthPage } from '@/pages/AuthPage';
+import { AboutPage } from '@/pages/AboutPage';
+import { TermsPage } from '@/pages/TermsPage';
+import { SupportPage } from '@/pages/SupportPage';
 import { SubmissionWizard } from '@/components/SubmissionWizard';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
@@ -52,6 +55,11 @@ function App() {
                 <Route path="/submit">
                   {() => <SubmissionWizard preselectedType={getPreselectedType()} />}
                 </Route>
+                
+                {/* Legal and Info pages */}
+                <Route path="/about" component={AboutPage} />
+                <Route path="/terms" component={TermsPage} />
+                <Route path="/support" component={SupportPage} />
                 
                 {/* Authentication pages */}
                 <Route path="/auth/signin" component={AuthPage} />
