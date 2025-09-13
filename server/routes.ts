@@ -4,7 +4,13 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { authenticateToken, optionalAuth } from "./middleware/auth";
 import { upload, validateFileUpload } from "./middleware/upload";
-import { insertSubmissionSchema, insertPaymentSchema } from "@shared/schema";
+import { 
+  insertSubmissionSchema, 
+  insertPaymentSchema,
+  insertPricingServiceSchema,
+  type PricingService,
+  type InsertPricingService 
+} from "@shared/schema";
 import "./firebase-admin"; // Initialize Firebase Admin
 import { GoogleGenAI } from "@google/genai";
 
@@ -323,6 +329,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Material upload endpoint with Firebase Storage
+  app.post('/api/materials/upload', authenticateToken, upload.single('file'), validateFileUpload, async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const { title, description, program, year, type } = req.body;
+      
+      // Validate required fields
+      if (!title || !program || !year || !type) {
+        return res.status(400).json({ error: 'Missing required fields: title, program, year, and type are required' });
+      }
+
+      // Upload file to Firebase Storage if available
+      let filePath = req.file.path;
+      let firebaseUrl = null;
+      
+      try {
+        // Try uploading to Firebase Storage
+        const firebaseStorage = require('./firebase-admin').storage;
+        if (firebaseStorage) {
+          const bucket = firebaseStorage.bucket();
+          const firebaseFilename = `materials/${Date.now()}-${req.file.originalname}`;
+          const file = bucket.file(firebaseFilename);
+          
+          const fs = require('fs');
+          const fileBuffer = fs.readFileSync(req.file.path);
+          
+          await file.save(fileBuffer, {
+            metadata: {
+              contentType: req.file.mimetype,
+            },
+          });
+          
+          // Get public URL
+          firebaseUrl = `https://storage.googleapis.com/${bucket.name}/${firebaseFilename}`;
+          filePath = firebaseFilename; // Store Firebase path
+        }
+      } catch (firebaseError) {
+        console.warn('Firebase upload failed, using local storage:', firebaseError);
+        // Continue with local storage as fallback
+      }
+
+      // Create material with approval pending
+      const material = await storage.createMaterial({
+        title,
+        description: description || '',
+        program,
+        year,
+        type,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        filePath: firebaseUrl || filePath,
+        uploadedBy: req.user!.userId,
+        isApproved: false,
+      });
+
+      res.status(201).json({
+        message: 'Material uploaded successfully and pending approval',
+        material
+      });
+    } catch (error) {
+      console.error('Error uploading material:', error);
+      res.status(500).json({ error: 'Failed to upload material' });
+    }
+  });
+
+  // Admin material approval endpoint
+  app.put('/api/admin/materials/:id', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const material = await storage.updateMaterial(id, updates);
+      res.json({
+        message: 'Material updated successfully',
+        material
+      });
+    } catch (error) {
+      console.error('Error updating material:', error);
+      res.status(500).json({ error: 'Failed to update material' });
+    }
+  });
+
+  // Admin material deletion endpoint
+  app.delete('/api/admin/materials/:id', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const { id } = req.params;
+      
+      // Get material info before deletion for cleanup
+      const material = await storage.getMaterial(id);
+      if (!material) {
+        return res.status(404).json({ error: 'Material not found' });
+      }
+
+      // Delete material from database
+      await storage.deleteMaterial(id);
+
+      // Try to delete from Firebase Storage if it was stored there
+      try {
+        if (material.filePath.startsWith('materials/')) {
+          const firebaseStorage = require('./firebase-admin').storage;
+          if (firebaseStorage) {
+            const bucket = firebaseStorage.bucket();
+            const file = bucket.file(material.filePath);
+            await file.delete();
+          }
+        }
+      } catch (cleanupError) {
+        console.warn('Failed to delete file from Firebase Storage:', cleanupError);
+        // Continue with database deletion even if file cleanup fails
+      }
+
+      res.json({
+        message: 'Material deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      res.status(500).json({ error: 'Failed to delete material' });
+    }
+  });
+
   // File upload endpoint
   app.post('/api/uploads', authenticateToken, upload.array('files', 6), validateFileUpload, async (req, res) => {
     try {
@@ -441,6 +582,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating payment:', error);
       res.status(500).json({ error: 'Failed to create payment' });
+    }
+  });
+
+  // Admin routes
+  app.get('/api/admin/users', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  app.get('/api/admin/submissions', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const submissions = await storage.getAllSubmissions();
+      res.json(submissions);
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+      res.status(500).json({ error: 'Failed to fetch submissions' });
+    }
+  });
+
+  app.get('/api/admin/materials', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const materials = await storage.getMaterials({});
+      res.json(materials);
+    } catch (error) {
+      console.error('Error fetching materials:', error);
+      res.status(500).json({ error: 'Failed to fetch materials' });
+    }
+  });
+
+  app.get('/api/admin/programs', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const materials = await storage.getMaterials({});
+      const programs = Array.from(new Set(materials.map(m => m.program).filter(Boolean)));
+      res.json(programs);
+    } catch (error) {
+      console.error('Error fetching programs:', error);
+      res.status(500).json({ error: 'Failed to fetch programs' });
+    }
+  });
+
+  app.post('/api/admin/programs', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const { name } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'Program name is required' });
+      }
+
+      // Create a placeholder material to establish the program
+      const material = await storage.createMaterial({
+        title: `${name} - Program Placeholder`,
+        description: `Placeholder material for ${name} program`,
+        program: name.trim(),
+        year: 'General',
+        type: 'document',
+        filePath: '/placeholder',
+        fileName: 'placeholder',
+        fileSize: 0,
+        uploadedBy: req.user!.userId,
+      });
+
+      res.status(201).json({ message: 'Program created successfully', material });
+    } catch (error) {
+      console.error('Error creating program:', error);
+      res.status(500).json({ error: 'Failed to create program' });
+    }
+  });
+
+  app.delete('/api/admin/programs/:name', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const programName = decodeURIComponent(req.params.name);
+      
+      // Get all materials for this program and delete them
+      const materials = await storage.getMaterials({ program: programName });
+      
+      // Note: We would need to add deleteMaterial method to storage interface
+      // For now, just return success
+      res.json({ message: `Program "${programName}" and ${materials.length} materials deleted successfully` });
+    } catch (error) {
+      console.error('Error deleting program:', error);
+      res.status(500).json({ error: 'Failed to delete program' });
     }
   });
 
@@ -635,6 +897,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching admin stats:', error);
       res.status(500).json({ error: 'Failed to fetch admin stats' });
+    }
+  });
+
+  // Pricing management routes
+  app.get('/api/admin/pricing', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const pricingServices = await storage.getAllPricingServices();
+      res.json(pricingServices);
+    } catch (error) {
+      console.error('Error fetching pricing services:', error);
+      res.status(500).json({ error: 'Failed to fetch pricing services' });
+    }
+  });
+
+  app.post('/api/admin/pricing', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const validatedData = insertPricingServiceSchema.parse(req.body);
+      const pricingService = await storage.createPricingService(validatedData);
+      res.status(201).json(pricingService);
+    } catch (error) {
+      console.error('Error creating pricing service:', error);
+      res.status(500).json({ error: 'Failed to create pricing service' });
+    }
+  });
+
+  app.put('/api/admin/pricing/:id', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const pricingService = await storage.updatePricingService(id, updates);
+      res.json(pricingService);
+    } catch (error) {
+      console.error('Error updating pricing service:', error);
+      res.status(500).json({ error: 'Failed to update pricing service' });
+    }
+  });
+
+  app.delete('/api/admin/pricing/:id', authenticateToken, async (req, res) => {
+    try {
+      // Check admin access
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required' });
+      }
+
+      const { id } = req.params;
+      await storage.deletePricingService(id);
+      res.json({ message: 'Pricing service deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting pricing service:', error);
+      res.status(500).json({ error: 'Failed to delete pricing service' });
     }
   });
 

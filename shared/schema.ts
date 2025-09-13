@@ -126,6 +126,20 @@ export const payments = pgTable("payments", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const pricingServices = pgTable("pricing_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: integer("price").notNull(), // Price in Kwacha (K)
+  features: jsonb("features").notNull(), // Array of features
+  isActive: boolean("is_active").default(true),
+  isFeatured: boolean("is_featured").default(false),
+  category: text("category").notNull().default("main"), // main, additional, free
+  orderIndex: integer("order_index").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -172,6 +186,12 @@ export const insertPaymentSchema = createInsertSchema(payments).omit({
   updatedAt: true,
 });
 
+export const insertPricingServiceSchema = createInsertSchema(pricingServices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -189,3 +209,5 @@ export type Referral = typeof referrals.$inferSelect;
 export type InsertReferral = z.infer<typeof insertReferralSchema>;
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type PricingService = typeof pricingServices.$inferSelect;
+export type InsertPricingService = z.infer<typeof insertPricingServiceSchema>;

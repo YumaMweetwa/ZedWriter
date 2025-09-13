@@ -6,7 +6,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // Check if Firebase environment variables are configured
 const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
 
-// Firebase configuration using actual environment variables
+// Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

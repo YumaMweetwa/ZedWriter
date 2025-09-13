@@ -15,6 +15,8 @@ import {
   type InsertReferral,
   type Payment,
   type InsertPayment,
+  type PricingService,
+  type InsertPricingService,
   users,
   submissions,
   materials,
@@ -22,7 +24,8 @@ import {
   messages,
   announcements,
   referrals,
-  payments
+  payments,
+  pricingServices
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, like, desc, count, sum } from "drizzle-orm";
@@ -33,6 +36,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User>;
 
@@ -44,6 +48,7 @@ export interface IStorage {
   updateSubmission(id: string, updates: Partial<Submission>): Promise<Submission>;
 
   // Material operations
+  getMaterial(id: string): Promise<Material | undefined>;
   getMaterials(filters: {
     program?: string;
     year?: string;
@@ -52,6 +57,7 @@ export interface IStorage {
   }): Promise<Material[]>;
   createMaterial(material: InsertMaterial): Promise<Material>;
   updateMaterial(id: string, updates: Partial<Material>): Promise<Material>;
+  deleteMaterial(id: string): Promise<void>;
 
   // Chat operations
   getChatRoomsByUser(userId: string): Promise<ChatRoom[]>;
@@ -72,6 +78,12 @@ export interface IStorage {
   getPaymentByTransactionId(transactionId: string, submissionId: string): Promise<Payment | undefined>;
   createPayment(payment: InsertPayment): Promise<Payment>;
   updatePayment(id: string, updates: Partial<Payment>): Promise<Payment>;
+
+  // Pricing operations
+  getAllPricingServices(): Promise<PricingService[]>;
+  createPricingService(service: InsertPricingService): Promise<PricingService>;
+  updatePricingService(id: string, updates: Partial<PricingService>): Promise<PricingService>;
+  deletePricingService(id: string): Promise<void>;
 
   // Admin operations
   getAdminStats(): Promise<{
@@ -103,6 +115,10 @@ export class DatabaseStorage implements IStorage {
   async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid));
     return user || undefined;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -140,6 +156,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Material operations
+  async getMaterial(id: string): Promise<Material | undefined> {
+    const [material] = await db.select().from(materials).where(eq(materials.id, id));
+    return material || undefined;
+  }
+
   async getMaterials(filters: {
     program?: string;
     year?: string;
@@ -177,6 +198,10 @@ export class DatabaseStorage implements IStorage {
   async updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
     const [material] = await db.update(materials).set(updates).where(eq(materials.id, id)).returning();
     return material;
+  }
+
+  async deleteMaterial(id: string): Promise<void> {
+    await db.delete(materials).where(eq(materials.id, id));
   }
 
   // Chat operations
@@ -241,6 +266,25 @@ export class DatabaseStorage implements IStorage {
   async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment> {
     const [payment] = await db.update(payments).set(updates).where(eq(payments.id, id)).returning();
     return payment;
+  }
+
+  // Pricing operations
+  async getAllPricingServices(): Promise<PricingService[]> {
+    return await db.select().from(pricingServices).orderBy(pricingServices.orderIndex, pricingServices.category);
+  }
+
+  async createPricingService(service: InsertPricingService): Promise<PricingService> {
+    const [pricingService] = await db.insert(pricingServices).values(service).returning();
+    return pricingService;
+  }
+
+  async updatePricingService(id: string, updates: Partial<PricingService>): Promise<PricingService> {
+    const [pricingService] = await db.update(pricingServices).set(updates).where(eq(pricingServices.id, id)).returning();
+    return pricingService;
+  }
+
+  async deletePricingService(id: string): Promise<void> {
+    await db.delete(pricingServices).where(eq(pricingServices.id, id));
   }
 
   // Admin operations

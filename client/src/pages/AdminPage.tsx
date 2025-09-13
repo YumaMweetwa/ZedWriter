@@ -1,117 +1,74 @@
 import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFirestoreCollection } from '@/hooks/use-firestore';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
-import { orderBy } from 'firebase/firestore';
-import { Submission, User } from '@shared/schema';
+import { Submission, User, Announcement, Material, PricingService } from '@shared/schema';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { uploadFile } from '@/lib/firebase';
 
-// Payment Management Component
-const PaymentManagement = ({ submissions, users }: { submissions: Submission[], users: User[] }) => {
-  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+// Announcements Management Component
+const AnnouncementsManagement = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
 
-  const paymentAdjustmentSchema = z.object({
-    submissionId: z.string().min(1, 'Submission ID is required'),
-    amount: z.number().min(0, 'Amount must be positive'),
-    description: z.string().min(1, 'Description is required'),
-    transactionId: z.string().optional(),
+  const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
+    queryKey: ['/api/announcements'],
   });
 
-  const form = useForm<z.infer<typeof paymentAdjustmentSchema>>({
-    resolver: zodResolver(paymentAdjustmentSchema),
+  const announcementSchema = z.object({
+    title: z.string().min(1, 'Title is required'),
+    content: z.string().min(1, 'Content is required'),
+    type: z.string().default('general'),
+  });
+
+  const form = useForm<z.infer<typeof announcementSchema>>({
+    resolver: zodResolver(announcementSchema),
     defaultValues: {
-      submissionId: '',
-      amount: 0,
-      description: '',
-      transactionId: '',
+      title: '',
+      content: '',
+      type: 'general',
     },
   });
 
-  const paymentAdjustmentMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof paymentAdjustmentSchema>) => {
-      const response = await apiRequest('POST', '/api/admin/adjust-payment', data);
+  const createAnnouncementMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof announcementSchema>) => {
+      const response = await apiRequest('POST', '/api/announcements', data);
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: 'Success', description: 'Payment adjusted successfully' });
+      toast({ title: 'Success', description: 'Announcement created successfully' });
       form.reset();
-      setSelectedSubmission(null);
-      queryClient.invalidateQueries({ queryKey: ['/api/submissions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
     },
     onError: (error: Error) => {
-      toast({ title: 'Error', description: `Failed to adjust payment: ${error.message}`, variant: 'destructive' });
+      toast({ title: 'Error', description: `Failed to create announcement: ${error.message}`, variant: 'destructive' });
     },
   });
 
-  const onSubmit = (data: z.infer<typeof paymentAdjustmentSchema>) => {
-    paymentAdjustmentMutation.mutate(data);
+  const onSubmit = (data: z.infer<typeof announcementSchema>) => {
+    createAnnouncementMutation.mutate(data);
   };
-
-  const handleSubmissionSelect = (submission: Submission) => {
-    setSelectedSubmission(submission);
-    form.setValue('submissionId', submission.id);
-    form.setValue('amount', (submission.amount || 0) - (submission.paidAmount || 0));
-  };
-
-  const pendingPayments = submissions.filter(s => 
-    (s.amount || 0) > (s.paidAmount || 0) && s.status !== 'cancelled'
-  );
 
   return (
     <div className="space-y-6">
-      {/* Payment Statistics */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {pendingPayments.length}
-              </div>
-              <div className="text-sm text-muted-foreground">Pending Payments</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(submissions.reduce((sum, s) => sum + (s.paidAmount || 0), 0))}
-              </div>
-              <div className="text-sm text-muted-foreground">Total Collected</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(submissions.reduce((sum, s) => sum + ((s.amount || 0) - (s.paidAmount || 0)), 0))}
-              </div>
-              <div className="text-sm text-muted-foreground">Outstanding Balance</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Payment Adjustment Form */}
+      {/* Create Announcement Form */}
       <Card>
         <CardHeader>
-          <CardTitle>Manual Payment Adjustment</CardTitle>
+          <CardTitle>Create New Announcement</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -119,72 +76,806 @@ const PaymentManagement = ({ submissions, users }: { submissions: Submission[], 
               <div className="grid md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="submissionId"
+                  name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Submission</FormLabel>
-                      <Select onValueChange={(value) => {
-                        field.onChange(value);
-                        const submission = submissions.find(s => s.id === value);
-                        if (submission) handleSubmissionSelect(submission);
-                      }} value={field.value}>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Announcement title" data-testid="input-announcement-title" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger data-testid="select-submission">
-                            <SelectValue placeholder="Select submission" />
+                          <SelectTrigger data-testid="select-announcement-type">
+                            <SelectValue placeholder="Select type" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {pendingPayments.map((submission) => {
-                            const user = users.find(u => u.id === submission.userId);
-                            return (
-                              <SelectItem key={submission.id} value={submission.id}>
-                                {submission.title || 'Untitled'} - {user?.firstName} {user?.lastName} (Outstanding: {formatCurrency((submission.amount || 0) - (submission.paidAmount || 0))})
-                              </SelectItem>
-                            );
-                          })}
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="promotion">Promotion</SelectItem>
+                          <SelectItem value="maintenance">Maintenance</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <FormField
+                control={form.control}
+                name="content"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Content</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Announcement content" 
+                        className="min-h-[100px]"
+                        data-testid="textarea-announcement-content"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button 
+                type="submit" 
+                disabled={createAnnouncementMutation.isPending}
+                data-testid="button-create-announcement"
+              >
+                {createAnnouncementMutation.isPending ? 'Creating...' : 'Create Announcement'}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {/* Announcements List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Announcements</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-12 bg-muted rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : announcements.length > 0 ? (
+            <div className="space-y-4">
+              {announcements.map((announcement) => (
+                <div 
+                  key={announcement.id}
+                  className="border border-border rounded-lg p-4"
+                  data-testid={`announcement-${announcement.id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="font-semibold">{announcement.title}</h4>
+                        <Badge variant="secondary">{announcement.type}</Badge>
+                      </div>
+                      <p className="text-muted-foreground mb-2">{announcement.content}</p>
+                      <div className="text-sm text-muted-foreground">
+                        Created: {formatDate(announcement.createdAt!)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No announcements yet</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Users Management Component
+const UsersManagement = () => {
+  const { data: users = [], isLoading } = useQuery<User[]>({
+    queryKey: ['/api/admin/users'],
+  });
+
+  const handleWhatsAppRedirect = (user: User) => {
+    const message = `Hello ${user.firstName}, this is support from Zedwriter. How can we help you today?`;
+    const phoneNumber = user.phone?.replace(/\D/g, '') || '';
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Users Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-12 bg-muted rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>School</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Total Paid</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
+                      <TableCell className="font-medium">
+                        {user.firstName} {user.lastName}
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{user.school || 'N/A'}</TableCell>
+                      <TableCell>{user.phone || 'N/A'}</TableCell>
+                      <TableCell>{formatCurrency(user.totalPaid || 0)}</TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          {user.phone && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleWhatsAppRedirect(user)}
+                              data-testid={`whatsapp-${user.id}`}
+                            >
+                              <i className="fab fa-whatsapp mr-1"></i>
+                              WhatsApp
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Materials Management Component
+const MaterialsManagement = () => {
+  const { toast } = useToast();
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+
+  const { data: materials = [], isLoading } = useQuery<Material[]>({
+    queryKey: ['/api/admin/materials'],
+  });
+
+  // Separate pending and approved materials
+  const pendingMaterials = materials.filter(m => !m.isApproved);
+  const approvedMaterials = materials.filter(m => m.isApproved);
+
+  const materialsByProgram = approvedMaterials.reduce((acc, material) => {
+    const program = material.program || 'Uncategorized';
+    if (!acc[program]) {
+      acc[program] = [];
+    }
+    acc[program].push(material);
+    return acc;
+  }, {} as Record<string, Material[]>);
+
+  // Material upload form schema
+  const uploadSchema = z.object({
+    title: z.string().min(1, 'Title is required'),
+    description: z.string().optional(),
+    program: z.string().min(1, 'Program is required'),
+    year: z.string().min(1, 'Year is required'),
+    type: z.string().min(1, 'Type is required'),
+    file: z.any().refine((file) => file?.length === 1, 'File is required'),
+  });
+
+  const uploadForm = useForm<z.infer<typeof uploadSchema>>({
+    resolver: zodResolver(uploadSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      program: '',
+      year: '',
+      type: '',
+    },
+  });
+
+  // Upload material mutation
+  const uploadMaterialMutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      const response = await fetch('/api/materials/upload', {
+        method: 'POST',
+        body: data,
+      });
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Material uploaded successfully and pending approval' });
+      uploadForm.reset();
+      setShowUploadForm(false);
+      setUploadingFile(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/materials'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Upload failed: ${error.message}`, variant: 'destructive' });
+      setUploadingFile(false);
+    },
+  });
+
+  // Approve/Reject material mutations
+  const approveMaterialMutation = useMutation({
+    mutationFn: async (materialId: string) => {
+      const response = await apiRequest('PUT', `/api/admin/materials/${materialId}`, { isApproved: true });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Material approved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/materials'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to approve material: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const rejectMaterialMutation = useMutation({
+    mutationFn: async (materialId: string) => {
+      const response = await apiRequest('DELETE', `/api/admin/materials/${materialId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Material rejected and removed' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/materials'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to reject material: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const onUploadSubmit = async (data: z.infer<typeof uploadSchema>) => {
+    setUploadingFile(true);
+    const formData = new FormData();
+    formData.append('title', data.title);
+    formData.append('description', data.description || '');
+    formData.append('program', data.program);
+    formData.append('year', data.year);
+    formData.append('type', data.type);
+    formData.append('file', data.file[0]);
+    
+    uploadMaterialMutation.mutate(formData);
+  };
+
+  const handleApproveMaterial = (materialId: string) => {
+    approveMaterialMutation.mutate(materialId);
+  };
+
+  const handleRejectMaterial = (materialId: string) => {
+    if (window.confirm('Are you sure you want to reject this material? This action cannot be undone.')) {
+      rejectMaterialMutation.mutate(materialId);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Upload Form */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Materials Management</CardTitle>
+          <Button 
+            onClick={() => setShowUploadForm(!showUploadForm)}
+            data-testid="button-toggle-upload"
+          >
+            {showUploadForm ? 'Cancel Upload' : 'Upload Material'}
+          </Button>
+        </CardHeader>
+        {showUploadForm && (
+          <CardContent>
+            <Form {...uploadForm}>
+              <form onSubmit={uploadForm.handleSubmit(onUploadSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={uploadForm.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Title</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Material title" data-testid="input-material-title" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={uploadForm.control}
+                    name="program"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Program</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Computer Science" data-testid="input-material-program" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={uploadForm.control}
+                    name="year"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Year</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Year 1, 2023" data-testid="input-material-year" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={uploadForm.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-material-type">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="study_notes">Study Notes</SelectItem>
+                            <SelectItem value="past_papers_theory">Past Papers (Theory)</SelectItem>
+                            <SelectItem value="past_papers_practical">Past Papers (Practical)</SelectItem>
+                            <SelectItem value="assignment">Assignment</SelectItem>
+                            <SelectItem value="project">Project</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
-                  control={form.control}
-                  name="amount"
+                  control={uploadForm.control}
+                  name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Payment Amount (K)</FormLabel>
+                      <FormLabel>Description (Optional)</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Brief description of the material" data-testid="input-material-description" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={uploadForm.control}
+                  name="file"
+                  render={({ field: { value, onChange, ...fieldProps } }) => (
+                    <FormItem>
+                      <FormLabel>File</FormLabel>
                       <FormControl>
                         <Input
-                          type="number"
-                          placeholder="0"
-                          data-testid="input-payment-amount"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          {...fieldProps}
+                          type="file"
+                          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                          onChange={(event) =>
+                            onChange(event.target.files)
+                          }
+                          data-testid="input-material-file"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
+                <Button 
+                  type="submit" 
+                  disabled={uploadingFile}
+                  data-testid="button-upload-material"
+                >
+                  {uploadingFile ? 'Uploading...' : 'Upload Material'}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        )}
+      </Card>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="transactionId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Transaction ID (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., MP240913.1234.A12345" data-testid="input-transaction-id" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      {/* Pending Materials for Approval */}
+      {pendingMaterials.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Approval ({pendingMaterials.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingMaterials.map((material) => (
+                <div 
+                  key={material.id} 
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                  data-testid={`pending-material-${material.id}`}
+                >
+                  <div className="flex-1">
+                    <div className="font-medium">{material.title}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {material.program} • {material.year} • {material.type.replace('_', ' ')}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {material.fileName} ({Math.round(material.fileSize / 1024)} KB)
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleApproveMaterial(material.id)}
+                      disabled={approveMaterialMutation.isPending}
+                      data-testid={`button-approve-${material.id}`}
+                    >
+                      Approve
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={() => handleRejectMaterial(material.id)}
+                      disabled={rejectMaterialMutation.isPending}
+                      data-testid={`button-reject-${material.id}`}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
+      {/* Approved Materials by Program */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Approved Materials by Program</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-16 bg-muted rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(materialsByProgram).map(([program, programMaterials]) => (
+                <Card key={program} data-testid={`program-${program}`}>
+                  <CardContent className="p-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {programMaterials.length}
+                      </div>
+                      <div className="text-sm text-muted-foreground capitalize">
+                        {program}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Approved Materials
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Program Settings Component
+const ProgramSettings = () => {
+  const { toast } = useToast();
+  const [newProgram, setNewProgram] = useState('');
+
+  const { data: programs = [], isLoading } = useQuery<string[]>({
+    queryKey: ['/api/admin/programs'],
+  });
+
+  const addProgramMutation = useMutation({
+    mutationFn: async (program: string) => {
+      const response = await apiRequest('POST', '/api/admin/programs', { name: program });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Program added successfully' });
+      setNewProgram('');
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/programs'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to add program: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const deleteProgramMutation = useMutation({
+    mutationFn: async (program: string) => {
+      const response = await apiRequest('DELETE', `/api/admin/programs/${encodeURIComponent(program)}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Program deleted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/programs'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to delete program: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const handleAddProgram = () => {
+    if (newProgram.trim()) {
+      addProgramMutation.mutate(newProgram.trim());
+    }
+  };
+
+  const handleDeleteProgram = (program: string) => {
+    if (window.confirm(`Are you sure you want to delete the program "${program}"? This will also remove all associated materials.`)) {
+      deleteProgramMutation.mutate(program);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Add New Program</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <Input
+              placeholder="Program name (e.g., Computer Science, Business Administration)"
+              value={newProgram}
+              onChange={(e) => setNewProgram(e.target.value)}
+              data-testid="input-new-program"
+            />
+            <Button 
+              onClick={handleAddProgram} 
+              disabled={!newProgram.trim() || addProgramMutation.isPending}
+              data-testid="button-add-program"
+            >
+              {addProgramMutation.isPending ? 'Adding...' : 'Add Program'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Existing Programs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-12 bg-muted rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : programs.length > 0 ? (
+            <div className="space-y-2">
+              {programs.map((program) => (
+                <div 
+                  key={program}
+                  className="flex items-center justify-between p-3 border border-border rounded-lg"
+                  data-testid={`program-item-${program}`}
+                >
+                  <span className="font-medium">{program}</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteProgram(program)}
+                    disabled={deleteProgramMutation.isPending}
+                    data-testid={`delete-program-${program}`}
+                  >
+                    <i className="fas fa-trash mr-2"></i>
+                    Delete
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No programs created yet</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Pricing Management Component
+const PricingManagement = () => {
+  const { toast } = useToast();
+  const [isCreating, setIsCreating] = useState(false);
+
+  const { data: pricingServices = [], isLoading } = useQuery<PricingService[]>({
+    queryKey: ['/api/admin/pricing'],
+  });
+
+  const pricingSchema = z.object({
+    name: z.string().min(1, 'Service name is required'),
+    description: z.string().optional(),
+    price: z.number().min(0, 'Price must be positive'),
+    features: z.array(z.string()).min(1, 'At least one feature is required'),
+    category: z.enum(['main', 'additional', 'free']).default('main'),
+    isFeatured: z.boolean().default(false),
+    orderIndex: z.number().default(0),
+  });
+
+  const form = useForm<z.infer<typeof pricingSchema>>({
+    resolver: zodResolver(pricingSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      price: 0,
+      features: [''],
+      category: 'main',
+      isFeatured: false,
+      orderIndex: 0,
+    },
+  });
+
+  const createPricingMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof pricingSchema>) => {
+      const response = await apiRequest('POST', '/api/admin/pricing', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Pricing service created successfully' });
+      form.reset();
+      setIsCreating(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pricing'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to create pricing service: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const deletePricingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/admin/pricing/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Pricing service deleted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/pricing'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: `Failed to delete pricing service: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  const onSubmit = (data: z.infer<typeof pricingSchema>) => {
+    // Filter out empty features
+    const cleanedData = {
+      ...data,
+      features: data.features.filter(f => f.trim() !== ''),
+    };
+    createPricingMutation.mutate(cleanedData);
+  };
+
+  const handleDeleteService = (service: PricingService) => {
+    if (window.confirm(`Are you sure you want to delete "${service.name}"?`)) {
+      deletePricingMutation.mutate(service.id);
+    }
+  };
+
+  const addFeatureField = () => {
+    const currentFeatures = form.getValues('features');
+    form.setValue('features', [...currentFeatures, '']);
+  };
+
+  const removeFeatureField = (index: number) => {
+    const currentFeatures = form.getValues('features');
+    form.setValue('features', currentFeatures.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Create New Service */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Pricing Services Management</CardTitle>
+          <Button 
+            onClick={() => setIsCreating(!isCreating)}
+            data-testid="button-toggle-create-pricing"
+          >
+            {isCreating ? 'Cancel' : 'Add New Service'}
+          </Button>
+        </CardHeader>
+        {isCreating && (
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Research Proposal" data-testid="input-service-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price (K)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="number" 
+                            placeholder="0" 
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            data-testid="input-service-price" 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
                   name="description"
@@ -192,104 +883,209 @@ const PaymentManagement = ({ submissions, users }: { submissions: Submission[], 
                     <FormItem>
                       <FormLabel>Description</FormLabel>
                       <FormControl>
-                        <Input placeholder="Payment description" data-testid="input-description" {...field} />
+                        <Textarea {...field} placeholder="Brief description of the service" data-testid="input-service-description" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
-
-              <Button 
-                type="submit" 
-                disabled={paymentAdjustmentMutation.isPending}
-                data-testid="button-adjust-payment"
-              >
-                {paymentAdjustmentMutation.isPending ? 'Processing...' : 'Adjust Payment'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-service-category">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="main">Main Service</SelectItem>
+                            <SelectItem value="additional">Additional Service</SelectItem>
+                            <SelectItem value="free">Free Service</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="orderIndex"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Display Order</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="number" 
+                            placeholder="0" 
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            data-testid="input-service-order" 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="isFeatured"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>Featured Service</FormLabel>
+                        </div>
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            data-testid="checkbox-service-featured"
+                            className="rounded border-gray-300"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div>
+                  <FormLabel>Features</FormLabel>
+                  <div className="space-y-2 mt-2">
+                    {form.watch('features').map((_, index) => (
+                      <div key={index} className="flex gap-2">
+                        <FormField
+                          control={form.control}
+                          name={`features.${index}`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormControl>
+                                <Input 
+                                  {...field} 
+                                  placeholder="Feature description" 
+                                  data-testid={`input-feature-${index}`}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => removeFeatureField(index)}
+                          disabled={form.watch('features').length <= 1}
+                          data-testid={`button-remove-feature-${index}`}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={addFeatureField}
+                      data-testid="button-add-feature"
+                    >
+                      Add Feature
+                    </Button>
+                  </div>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={createPricingMutation.isPending}
+                  data-testid="button-create-service"
+                >
+                  {createPricingMutation.isPending ? 'Creating...' : 'Create Service'}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        )}
       </Card>
 
-      {/* Pending Payments Table */}
+      {/* Existing Services */}
       <Card>
         <CardHeader>
-          <CardTitle>Pending Payments</CardTitle>
+          <CardTitle>Current Pricing Services</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-4 font-medium">Student</th>
-                  <th className="text-left p-4 font-medium">Submission</th>
-                  <th className="text-left p-4 font-medium">Type</th>
-                  <th className="text-left p-4 font-medium">Total Amount</th>
-                  <th className="text-left p-4 font-medium">Paid Amount</th>
-                  <th className="text-left p-4 font-medium">Outstanding</th>
-                  <th className="text-left p-4 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingPayments.map((submission) => {
-                  const user = users.find(u => u.id === submission.userId);
-                  const outstanding = (submission.amount || 0) - (submission.paidAmount || 0);
-                  return (
-                    <tr key={submission.id} className="border-b border-border">
-                      <td className="p-4">
-                        <div>
-                          <div className="font-medium">
-                            {user ? `${user.firstName} ${user.lastName}` : 'N/A'}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {user?.email || 'N/A'}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 max-w-xs truncate">{submission.title}</td>
-                      <td className="p-4">
-                        <Badge variant="secondary">{submission.type.replace('_', ' ')}</Badge>
-                      </td>
-                      <td className="p-4 font-medium">{formatCurrency(submission.amount || 0)}</td>
-                      <td className="p-4 font-medium text-green-600">{formatCurrency(submission.paidAmount || 0)}</td>
-                      <td className="p-4 font-medium text-red-600">{formatCurrency(outstanding)}</td>
-                      <td className="p-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleSubmissionSelect(submission)}
-                          data-testid={`select-submission-${submission.id}`}
-                        >
-                          Select
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          ) : pricingServices.length === 0 ? (
+            <p className="text-muted-foreground">No pricing services configured yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {pricingServices.map((service) => (
+                <div 
+                  key={service.id}
+                  className="flex items-center justify-between p-4 rounded-lg border"
+                  data-testid={`pricing-service-${service.id}`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium">{service.name}</h3>
+                      {service.isFeatured && (
+                        <Badge variant="secondary">Featured</Badge>
+                      )}
+                      <Badge variant="outline" className="capitalize">
+                        {service.category}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                    <div className="text-lg font-bold text-primary mt-1">
+                      {service.price === 0 ? 'Free' : formatCurrency(service.price)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Features: {Array.isArray(service.features) ? service.features.length : 0} | Order: {service.orderIndex}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => handleDeleteService(service)}
+                      data-testid={`button-delete-service-${service.id}`}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 };
 
+// Main AdminPage Component
 export const AdminPage = () => {
   const { user } = useAuth();
 
-  // Fetch all submissions
-  const { data: submissions, loading: submissionsLoading } = useFirestoreCollection<Submission>(
-    'submissions',
-    [orderBy('createdAt', 'desc')]
-  );
+  // Fetch all data for overview
+  const { data: submissions = [], isLoading: submissionsLoading } = useQuery<Submission[]>({
+    queryKey: ['/api/admin/submissions'],
+    enabled: !!user && user.role === 'admin',
+  });
 
-  // Fetch all users
-  const { data: users, loading: usersLoading } = useFirestoreCollection<User>(
-    'users',
-    [orderBy('createdAt', 'desc')]
-  );
+  const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ['/api/admin/users'],
+    enabled: !!user && user.role === 'admin',
+  });
 
   // Check admin access
   if (!user || user.role !== 'admin') {
@@ -310,7 +1106,7 @@ export const AdminPage = () => {
     const activeUsers = users.filter(u => u.isActive).length;
     const totalRevenue = submissions
       .filter(s => s.status === 'completed')
-      .reduce((sum, s) => sum + s.amount, 0);
+      .reduce((sum, s) => sum + (s.amount || 0), 0);
 
     return {
       totalSubmissions,
@@ -328,7 +1124,7 @@ export const AdminPage = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage submissions, users, and system settings</p>
+          <p className="text-muted-foreground">Manage submissions, users, materials, and system settings</p>
         </div>
 
         {/* KPI Cards */}
@@ -344,10 +1140,6 @@ export const AdminPage = () => {
                   <i className="fas fa-file-alt text-xl"></i>
                 </div>
               </div>
-              <div className="mt-4 text-sm">
-                <span className="text-primary">+12%</span>
-                <span className="text-muted-foreground"> from last month</span>
-              </div>
             </CardContent>
           </Card>
 
@@ -361,9 +1153,6 @@ export const AdminPage = () => {
                 <div className="bg-yellow-100 text-yellow-600 rounded-full p-3">
                   <i className="fas fa-clock text-xl"></i>
                 </div>
-              </div>
-              <div className="mt-4 text-sm">
-                <span className="text-destructive">Needs attention</span>
               </div>
             </CardContent>
           </Card>
@@ -379,10 +1168,6 @@ export const AdminPage = () => {
                   <i className="fas fa-users text-xl"></i>
                 </div>
               </div>
-              <div className="mt-4 text-sm">
-                <span className="text-primary">+8%</span>
-                <span className="text-muted-foreground"> from last month</span>
-              </div>
             </CardContent>
           </Card>
 
@@ -397,10 +1182,6 @@ export const AdminPage = () => {
                   <i className="fas fa-chart-line text-xl"></i>
                 </div>
               </div>
-              <div className="mt-4 text-sm">
-                <span className="text-primary">+15%</span>
-                <span className="text-muted-foreground"> from last month</span>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -409,11 +1190,11 @@ export const AdminPage = () => {
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="overview" data-testid="admin-tab-overview">Overview</TabsTrigger>
-            <TabsTrigger value="submissions" data-testid="admin-tab-submissions">Submissions</TabsTrigger>
-            <TabsTrigger value="payments" data-testid="admin-tab-payments">Payments</TabsTrigger>
+            <TabsTrigger value="announcements" data-testid="admin-tab-announcements">Announcements</TabsTrigger>
             <TabsTrigger value="users" data-testid="admin-tab-users">Users</TabsTrigger>
-            <TabsTrigger value="messages" data-testid="admin-tab-messages">Messages</TabsTrigger>
             <TabsTrigger value="materials" data-testid="admin-tab-materials">Materials</TabsTrigger>
+            <TabsTrigger value="programs" data-testid="admin-tab-programs">Programs</TabsTrigger>
+            <TabsTrigger value="pricing" data-testid="admin-tab-pricing">Pricing</TabsTrigger>
             <TabsTrigger value="settings" data-testid="admin-tab-settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -472,21 +1253,16 @@ export const AdminPage = () => {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Storage Used</span>
-                      <span className="font-medium">2.4 GB / 10 GB</span>
+                      <span className="text-muted-foreground">Active Users</span>
+                      <span className="font-medium">{stats.activeUsers}</span>
                     </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="bg-primary h-2 rounded-full" style={{ width: '24%' }}></div>
-                    </div>
-                    
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Active Sessions</span>
-                      <span className="font-medium">23</span>
+                      <span className="text-muted-foreground">Pending Submissions</span>
+                      <span className="font-medium text-destructive">{stats.pendingSubmissions}</span>
                     </div>
-                    
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Materials Pending</span>
-                      <span className="font-medium text-destructive">5</span>
+                      <span className="text-muted-foreground">Total Revenue</span>
+                      <span className="font-medium">{formatCurrency(stats.totalRevenue)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -494,157 +1270,45 @@ export const AdminPage = () => {
             </div>
           </TabsContent>
 
-          {/* Submissions Tab */}
-          <TabsContent value="submissions">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>All Submissions</CardTitle>
-                  <div className="flex space-x-3">
-                    <select className="border border-border rounded-lg px-3 py-2 text-sm">
-                      <option value="">All Status</option>
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                    <input 
-                      type="text" 
-                      placeholder="Search..." 
-                      className="border border-border rounded-lg px-3 py-2 text-sm"
-                      data-testid="admin-submissions-search"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="text-left p-4 font-medium">Student</th>
-                        <th className="text-left p-4 font-medium">Type</th>
-                        <th className="text-left p-4 font-medium">Title</th>
-                        <th className="text-left p-4 font-medium">Status</th>
-                        <th className="text-left p-4 font-medium">Amount</th>
-                        <th className="text-left p-4 font-medium">Date</th>
-                        <th className="text-left p-4 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {submissions.slice(0, 10).map((submission) => (
-                        <tr key={submission.id} className="border-b border-border">
-                          <td className="p-4">
-                            <div>
-                              <div className="font-medium">
-                                {(() => {
-                                  const user = users.find(u => u.id === submission.userId);
-                                  return user ? `${user.firstName} ${user.lastName}` : 'N/A';
-                                })()}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {(() => {
-                                  const user = users.find(u => u.id === submission.userId);
-                                  return user?.email || 'N/A';
-                                })()}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <Badge variant="secondary">{submission.type.replace('_', ' ')}</Badge>
-                          </td>
-                          <td className="p-4 max-w-xs truncate">{submission.title}</td>
-                          <td className="p-4">
-                            <Badge className={getStatusColor(submission.status ?? 'pending')}>
-                              {(submission.status ?? 'pending').replace('_', ' ')}
-                            </Badge>
-                          </td>
-                          <td className="p-4 font-medium">{formatCurrency(submission.amount)}</td>
-                          <td className="p-4 text-muted-foreground">{formatDate(submission.createdAt!)}</td>
-                          <td className="p-4">
-                            <div className="flex space-x-2">
-                              <Button variant="ghost" size="sm" data-testid={`view-submission-${submission.id}`}>
-                                <i className="fas fa-eye text-primary"></i>
-                              </Button>
-                              <Button variant="ghost" size="sm" data-testid={`edit-submission-${submission.id}`}>
-                                <i className="fas fa-edit text-secondary"></i>
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Payments Tab */}
-          <TabsContent value="payments">
-            <PaymentManagement submissions={submissions} users={users} />
+          {/* Announcements Tab */}
+          <TabsContent value="announcements">
+            <AnnouncementsManagement />
           </TabsContent>
 
           {/* Users Tab */}
           <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>User Management</CardTitle>
-                  <Button data-testid="export-users-csv">Export CSV</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <i className="fas fa-users text-4xl mb-4"></i>
-                  <p>User management interface</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Messages Tab */}
-          <TabsContent value="messages">
-            <Card>
-              <CardHeader>
-                <CardTitle>Messages</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <i className="fas fa-comments text-4xl mb-4"></i>
-                  <p>Messages management interface</p>
-                </div>
-              </CardContent>
-            </Card>
+            <UsersManagement />
           </TabsContent>
 
           {/* Materials Tab */}
           <TabsContent value="materials">
-            <Card>
-              <CardHeader>
-                <CardTitle>Materials Moderation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <i className="fas fa-file-alt text-4xl mb-4"></i>
-                  <p>Materials moderation interface</p>
-                </div>
-              </CardContent>
-            </Card>
+            <MaterialsManagement />
+          </TabsContent>
+
+          {/* Programs Tab */}
+          <TabsContent value="programs">
+            <ProgramSettings />
+          </TabsContent>
+
+          {/* Pricing Tab */}
+          <TabsContent value="pricing">
+            <PricingManagement />
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <i className="fas fa-cog text-4xl mb-4"></i>
-                  <p>System settings interface</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Pricing management and other general settings will be implemented here.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
