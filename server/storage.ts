@@ -16,19 +16,25 @@ import {
   type Payment,
   type InsertPayment,
   type PricingService,
-  type InsertPricingService,
-  users,
-  submissions,
-  materials,
-  chatRooms,
-  messages,
-  announcements,
-  referrals,
-  payments,
-  pricingServices
+  type InsertPricingService
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, and, like, desc, count, sum } from "drizzle-orm";
+import admin from "./firebase-admin";
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  startAfter,
+  Timestamp,
+  FieldValue
+} from "firebase-admin/firestore";
 
 // Enhanced storage interface with all required methods
 export interface IStorage {
@@ -95,70 +101,174 @@ export interface IStorage {
   }>;
 }
 
-// Referenced from javascript_database blueprint integration
-export class DatabaseStorage implements IStorage {
+// Firestore-based storage implementation
+export class FirestoreStorage implements IStorage {
+  private db = admin.firestore();
+
   constructor() {
-    // No initialization needed for database storage
+    // Initialize Firestore settings
+    this.db.settings({ ignoreUndefinedProperties: true });
+  }
+
+  private generateId(): string {
+    return this.db.collection('_').doc().id;
+  }
+
+  private addTimestamps(data: any): any {
+    const now = Timestamp.now();
+    return {
+      ...data,
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  private updateTimestamp(data: any): any {
+    return {
+      ...data,
+      updatedAt: Timestamp.now()
+    };
   }
 
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
+    try {
+      const userDoc = await this.db.collection('users').doc(id).get();
+      if (!userDoc.exists) return undefined;
+      return { id: userDoc.id, ...userDoc.data() } as User;
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return undefined;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, username));
-    return user || undefined;
+    try {
+      const usersQuery = await this.db.collection('users').where('email', '==', username).limit(1).get();
+      if (usersQuery.empty) return undefined;
+      const userDoc = usersQuery.docs[0];
+      return { id: userDoc.id, ...userDoc.data() } as User;
+    } catch (error) {
+      console.error('Error getting user by username:', error);
+      return undefined;
+    }
   }
 
   async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid));
-    return user || undefined;
+    try {
+      const usersQuery = await this.db.collection('users').where('firebaseUid', '==', firebaseUid).limit(1).get();
+      if (usersQuery.empty) return undefined;
+      const userDoc = usersQuery.docs[0];
+      return { id: userDoc.id, ...userDoc.data() } as User;
+    } catch (error) {
+      console.error('Error getting user by Firebase UID:', error);
+      return undefined;
+    }
   }
 
   async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+    try {
+      const usersQuery = await this.db.collection('users').orderBy('createdAt', 'desc').get();
+      return usersQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    try {
+      const userWithTimestamps = this.addTimestamps(insertUser);
+      const userRef = await this.db.collection('users').add(userWithTimestamps);
+      return { id: userRef.id, ...userWithTimestamps } as User;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    const [user] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
-    return user;
+    try {
+      const updatesWithTimestamp = this.updateTimestamp(updates);
+      await this.db.collection('users').doc(id).update(updatesWithTimestamp);
+      const updatedDoc = await this.db.collection('users').doc(id).get();
+      return { id: updatedDoc.id, ...updatedDoc.data() } as User;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
   }
 
   // Submission operations
   async getSubmission(id: string): Promise<Submission | undefined> {
-    const [submission] = await db.select().from(submissions).where(eq(submissions.id, id));
-    return submission || undefined;
+    try {
+      const submissionDoc = await this.db.collection('submissions').doc(id).get();
+      if (!submissionDoc.exists) return undefined;
+      return { id: submissionDoc.id, ...submissionDoc.data() } as Submission;
+    } catch (error) {
+      console.error('Error getting submission:', error);
+      return undefined;
+    }
   }
 
   async getSubmissionsByUser(userId: string): Promise<Submission[]> {
-    return await db.select().from(submissions).where(eq(submissions.userId, userId)).orderBy(desc(submissions.createdAt));
+    try {
+      const submissionsQuery = await this.db.collection('submissions')
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return submissionsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission));
+    } catch (error) {
+      console.error('Error getting submissions by user:', error);
+      return [];
+    }
   }
 
   async getAllSubmissions(): Promise<Submission[]> {
-    return await db.select().from(submissions).orderBy(desc(submissions.createdAt));
+    try {
+      const submissionsQuery = await this.db.collection('submissions')
+        .orderBy('createdAt', 'desc')
+        .get();
+      return submissionsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission));
+    } catch (error) {
+      console.error('Error getting all submissions:', error);
+      return [];
+    }
   }
 
   async createSubmission(insertSubmission: InsertSubmission): Promise<Submission> {
-    const [submission] = await db.insert(submissions).values(insertSubmission).returning();
-    return submission;
+    try {
+      const submissionWithTimestamps = this.addTimestamps(insertSubmission);
+      const submissionRef = await this.db.collection('submissions').add(submissionWithTimestamps);
+      return { id: submissionRef.id, ...submissionWithTimestamps } as Submission;
+    } catch (error) {
+      console.error('Error creating submission:', error);
+      throw error;
+    }
   }
 
   async updateSubmission(id: string, updates: Partial<Submission>): Promise<Submission> {
-    const [submission] = await db.update(submissions).set(updates).where(eq(submissions.id, id)).returning();
-    return submission;
+    try {
+      const updatesWithTimestamp = this.updateTimestamp(updates);
+      await this.db.collection('submissions').doc(id).update(updatesWithTimestamp);
+      const updatedDoc = await this.db.collection('submissions').doc(id).get();
+      return { id: updatedDoc.id, ...updatedDoc.data() } as Submission;
+    } catch (error) {
+      console.error('Error updating submission:', error);
+      throw error;
+    }
   }
 
   // Material operations
   async getMaterial(id: string): Promise<Material | undefined> {
-    const [material] = await db.select().from(materials).where(eq(materials.id, id));
-    return material || undefined;
+    try {
+      const materialDoc = await this.db.collection('materials').doc(id).get();
+      if (!materialDoc.exists) return undefined;
+      return { id: materialDoc.id, ...materialDoc.data() } as Material;
+    } catch (error) {
+      console.error('Error getting material:', error);
+      return undefined;
+    }
   }
 
   async getMaterials(filters: {
@@ -167,124 +277,267 @@ export class DatabaseStorage implements IStorage {
     type?: string;
     search?: string;
   }): Promise<Material[]> {
-    let query = db.select().from(materials).where(eq(materials.isApproved, true));
+    try {
+      let materialsQuery = this.db.collection('materials').where('isApproved', '==', true);
 
-    const conditions = [];
-    if (filters.program) {
-      conditions.push(eq(materials.program, filters.program));
-    }
-    if (filters.year) {
-      conditions.push(eq(materials.year, filters.year));
-    }
-    if (filters.type) {
-      conditions.push(eq(materials.type, filters.type));
-    }
-    if (filters.search) {
-      conditions.push(like(materials.title, `%${filters.search}%`));
-    }
+      // Apply filters - Firestore requires separate where clauses
+      if (filters.program) {
+        materialsQuery = materialsQuery.where('program', '==', filters.program);
+      }
+      if (filters.year) {
+        materialsQuery = materialsQuery.where('year', '==', filters.year);
+      }
+      if (filters.type) {
+        materialsQuery = materialsQuery.where('type', '==', filters.type);
+      }
 
-    if (conditions.length > 0) {
-      query = db.select().from(materials).where(and(eq(materials.isApproved, true), ...conditions));
-    }
+      materialsQuery = materialsQuery.orderBy('createdAt', 'desc');
+      const materialsSnapshot = await materialsQuery.get();
+      let materials = materialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material));
 
-    return await query.orderBy(desc(materials.createdAt));
+      // Apply search filter in memory (Firestore doesn't support LIKE queries)
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        materials = materials.filter(material => 
+          material.title?.toLowerCase().includes(searchTerm) || 
+          material.description?.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      return materials;
+    } catch (error) {
+      console.error('Error getting materials:', error);
+      return [];
+    }
   }
 
   async createMaterial(insertMaterial: InsertMaterial): Promise<Material> {
-    const [material] = await db.insert(materials).values(insertMaterial).returning();
-    return material;
+    try {
+      const materialWithTimestamps = this.addTimestamps(insertMaterial);
+      const materialRef = await this.db.collection('materials').add(materialWithTimestamps);
+      return { id: materialRef.id, ...materialWithTimestamps } as Material;
+    } catch (error) {
+      console.error('Error creating material:', error);
+      throw error;
+    }
   }
 
   async updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
-    const [material] = await db.update(materials).set(updates).where(eq(materials.id, id)).returning();
-    return material;
+    try {
+      const updatesWithTimestamp = this.updateTimestamp(updates);
+      await this.db.collection('materials').doc(id).update(updatesWithTimestamp);
+      const updatedDoc = await this.db.collection('materials').doc(id).get();
+      return { id: updatedDoc.id, ...updatedDoc.data() } as Material;
+    } catch (error) {
+      console.error('Error updating material:', error);
+      throw error;
+    }
   }
 
   async deleteMaterial(id: string): Promise<void> {
-    await db.delete(materials).where(eq(materials.id, id));
+    try {
+      await this.db.collection('materials').doc(id).delete();
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      throw error;
+    }
   }
 
   // Chat operations
   async getChatRoomsByUser(userId: string): Promise<ChatRoom[]> {
-    return await db.select().from(chatRooms).where(eq(chatRooms.userId, userId)).orderBy(desc(chatRooms.updatedAt));
+    try {
+      const roomsQuery = await this.db.collection('chatRooms')
+        .where('userId', '==', userId)
+        .orderBy('updatedAt', 'desc')
+        .get();
+      return roomsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatRoom));
+    } catch (error) {
+      console.error('Error getting chat rooms by user:', error);
+      return [];
+    }
   }
 
   async createChatRoom(insertChatRoom: InsertChatRoom): Promise<ChatRoom> {
-    const [chatRoom] = await db.insert(chatRooms).values(insertChatRoom).returning();
-    return chatRoom;
+    try {
+      const roomWithTimestamps = this.addTimestamps(insertChatRoom);
+      const roomRef = await this.db.collection('chatRooms').add(roomWithTimestamps);
+      return { id: roomRef.id, ...roomWithTimestamps } as ChatRoom;
+    } catch (error) {
+      console.error('Error creating chat room:', error);
+      throw error;
+    }
   }
 
   async getMessagesByRoom(roomId: string): Promise<Message[]> {
-    return await db.select().from(messages).where(eq(messages.roomId, roomId)).orderBy(messages.createdAt);
+    try {
+      const messagesQuery = await this.db.collection('messages')
+        .where('roomId', '==', roomId)
+        .orderBy('createdAt', 'asc')
+        .get();
+      return messagesQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+    } catch (error) {
+      console.error('Error getting messages by room:', error);
+      return [];
+    }
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const [message] = await db.insert(messages).values(insertMessage).returning();
-    return message;
+    try {
+      const messageWithTimestamps = this.addTimestamps(insertMessage);
+      const messageRef = await this.db.collection('messages').add(messageWithTimestamps);
+      return { id: messageRef.id, ...messageWithTimestamps } as Message;
+    } catch (error) {
+      console.error('Error creating message:', error);
+      throw error;
+    }
   }
 
   // Announcement operations
   async getAnnouncements(): Promise<Announcement[]> {
-    return await db.select().from(announcements).where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt));
+    try {
+      const announcementsQuery = await this.db.collection('announcements')
+        .where('isActive', '==', true)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return announcementsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
+    } catch (error) {
+      console.error('Error getting announcements:', error);
+      return [];
+    }
   }
 
   async createAnnouncement(insertAnnouncement: InsertAnnouncement): Promise<Announcement> {
-    const [announcement] = await db.insert(announcements).values(insertAnnouncement).returning();
-    return announcement;
+    try {
+      const announcementWithTimestamps = this.addTimestamps(insertAnnouncement);
+      const announcementRef = await this.db.collection('announcements').add(announcementWithTimestamps);
+      return { id: announcementRef.id, ...announcementWithTimestamps } as Announcement;
+    } catch (error) {
+      console.error('Error creating announcement:', error);
+      throw error;
+    }
   }
 
   // Referral operations
   async getReferralsByUser(userId: string): Promise<Referral[]> {
-    return await db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt));
+    try {
+      const referralsQuery = await this.db.collection('referrals')
+        .where('referrerId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return referralsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+    } catch (error) {
+      console.error('Error getting referrals by user:', error);
+      return [];
+    }
   }
 
   async createReferral(insertReferral: InsertReferral): Promise<Referral> {
-    const [referral] = await db.insert(referrals).values(insertReferral).returning();
-    return referral;
+    try {
+      const referralWithTimestamps = this.addTimestamps(insertReferral);
+      const referralRef = await this.db.collection('referrals').add(referralWithTimestamps);
+      return { id: referralRef.id, ...referralWithTimestamps } as Referral;
+    } catch (error) {
+      console.error('Error creating referral:', error);
+      throw error;
+    }
   }
 
   // Payment operations
   async getPaymentsByUser(userId: string): Promise<Payment[]> {
-    return await db.select().from(payments).where(eq(payments.userId, userId)).orderBy(desc(payments.createdAt));
+    try {
+      const paymentsQuery = await this.db.collection('payments')
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return paymentsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+    } catch (error) {
+      console.error('Error getting payments by user:', error);
+      return [];
+    }
   }
 
   async getPaymentByTransactionId(transactionId: string, submissionId: string): Promise<Payment | undefined> {
-    const [payment] = await db.select().from(payments).where(
-      and(
-        eq(payments.transactionId, transactionId),
-        eq(payments.submissionId, submissionId)
-      )
-    );
-    return payment || undefined;
+    try {
+      const paymentsQuery = await this.db.collection('payments')
+        .where('transactionId', '==', transactionId)
+        .where('submissionId', '==', submissionId)
+        .limit(1)
+        .get();
+      if (paymentsQuery.empty) return undefined;
+      const paymentDoc = paymentsQuery.docs[0];
+      return { id: paymentDoc.id, ...paymentDoc.data() } as Payment;
+    } catch (error) {
+      console.error('Error getting payment by transaction ID:', error);
+      return undefined;
+    }
   }
 
   async createPayment(insertPayment: InsertPayment): Promise<Payment> {
-    const [payment] = await db.insert(payments).values(insertPayment).returning();
-    return payment;
+    try {
+      const paymentWithTimestamps = this.addTimestamps(insertPayment);
+      const paymentRef = await this.db.collection('payments').add(paymentWithTimestamps);
+      return { id: paymentRef.id, ...paymentWithTimestamps } as Payment;
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      throw error;
+    }
   }
 
   async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment> {
-    const [payment] = await db.update(payments).set(updates).where(eq(payments.id, id)).returning();
-    return payment;
+    try {
+      const updatesWithTimestamp = this.updateTimestamp(updates);
+      await this.db.collection('payments').doc(id).update(updatesWithTimestamp);
+      const updatedDoc = await this.db.collection('payments').doc(id).get();
+      return { id: updatedDoc.id, ...updatedDoc.data() } as Payment;
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      throw error;
+    }
   }
 
   // Pricing operations
   async getAllPricingServices(): Promise<PricingService[]> {
-    return await db.select().from(pricingServices).orderBy(pricingServices.orderIndex, pricingServices.category);
+    try {
+      const pricingQuery = await this.db.collection('pricingServices')
+        .orderBy('orderIndex', 'asc')
+        .get();
+      return pricingQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as PricingService));
+    } catch (error) {
+      console.error('Error getting pricing services:', error);
+      return [];
+    }
   }
 
   async createPricingService(service: InsertPricingService): Promise<PricingService> {
-    const [pricingService] = await db.insert(pricingServices).values(service).returning();
-    return pricingService;
+    try {
+      const serviceWithTimestamps = this.addTimestamps(service);
+      const serviceRef = await this.db.collection('pricingServices').add(serviceWithTimestamps);
+      return { id: serviceRef.id, ...serviceWithTimestamps } as PricingService;
+    } catch (error) {
+      console.error('Error creating pricing service:', error);
+      throw error;
+    }
   }
 
   async updatePricingService(id: string, updates: Partial<PricingService>): Promise<PricingService> {
-    const [pricingService] = await db.update(pricingServices).set(updates).where(eq(pricingServices.id, id)).returning();
-    return pricingService;
+    try {
+      const updatesWithTimestamp = this.updateTimestamp(updates);
+      await this.db.collection('pricingServices').doc(id).update(updatesWithTimestamp);
+      const updatedDoc = await this.db.collection('pricingServices').doc(id).get();
+      return { id: updatedDoc.id, ...updatedDoc.data() } as PricingService;
+    } catch (error) {
+      console.error('Error updating pricing service:', error);
+      throw error;
+    }
   }
 
   async deletePricingService(id: string): Promise<void> {
-    await db.delete(pricingServices).where(eq(pricingServices.id, id));
+    try {
+      await this.db.collection('pricingServices').doc(id).delete();
+    } catch (error) {
+      console.error('Error deleting pricing service:', error);
+      throw error;
+    }
   }
 
   // Admin operations
@@ -295,20 +548,51 @@ export class DatabaseStorage implements IStorage {
     totalRevenue: number;
     activeUsers: number;
   }> {
-    const [userCount] = await db.select({ count: count(users.id) }).from(users);
-    const [submissionCount] = await db.select({ count: count(submissions.id) }).from(submissions);
-    const [pendingCount] = await db.select({ count: count(submissions.id) }).from(submissions).where(eq(submissions.status, 'pending'));
-    const [revenueSum] = await db.select({ sum: sum(submissions.paidAmount) }).from(submissions);
-    const [activeUserCount] = await db.select({ count: count(users.id) }).from(users).where(eq(users.isActive, true));
+    try {
+      // Get all collections data in parallel for performance
+      const [usersSnapshot, submissionsSnapshot, activeUsersSnapshot] = await Promise.all([
+        this.db.collection('users').get(),
+        this.db.collection('submissions').get(),
+        this.db.collection('users').where('isActive', '==', true).get()
+      ]);
 
-    return {
-      totalUsers: userCount.count || 0,
-      totalSubmissions: submissionCount.count || 0,
-      pendingSubmissions: pendingCount.count || 0,
-      totalRevenue: Number(revenueSum.sum || 0),
-      activeUsers: activeUserCount.count || 0,
-    };
+      // Calculate stats from the data
+      const totalUsers = usersSnapshot.size;
+      const totalSubmissions = submissionsSnapshot.size;
+      const activeUsers = activeUsersSnapshot.size;
+
+      // Calculate pending submissions and revenue
+      let pendingSubmissions = 0;
+      let totalRevenue = 0;
+
+      submissionsSnapshot.docs.forEach(doc => {
+        const submission = doc.data() as Submission;
+        if (submission.status === 'pending') {
+          pendingSubmissions++;
+        }
+        if (submission.paidAmount) {
+          totalRevenue += Number(submission.paidAmount);
+        }
+      });
+
+      return {
+        totalUsers,
+        totalSubmissions,
+        pendingSubmissions,
+        totalRevenue,
+        activeUsers,
+      };
+    } catch (error) {
+      console.error('Error getting admin stats:', error);
+      return {
+        totalUsers: 0,
+        totalSubmissions: 0,
+        pendingSubmissions: 0,
+        totalRevenue: 0,
+        activeUsers: 0,
+      };
+    }
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new FirestoreStorage();
