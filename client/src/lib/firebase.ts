@@ -6,15 +6,15 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // Check if Firebase environment variables are configured
 const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
 
-// Firebase configuration with provided settings
+// Firebase configuration using actual environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "improvedzedwriter.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "improvedzedwriter.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1001779186944",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1001779186944:web:055ad830723a01bf1177e5",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-GG14E34Q6Q",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 let app: any = null;

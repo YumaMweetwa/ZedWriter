@@ -11,16 +11,16 @@ if (!admin.apps.length) {
         credential: admin.credential.cert(serviceAccount),
       });
     } else {
-      // For development - use default credentials or minimal setup
+      // For development - use actual project ID from environment
       admin.initializeApp({
-        projectId: process.env.FIREBASE_PROJECT_ID || 'zedwriter-dev',
+        projectId: process.env.FIREBASE_PROJECT_ID,
       });
     }
   } catch (error) {
     console.warn('Firebase Admin initialization skipped:', (error as Error).message);
     // Initialize without credentials for development
     admin.initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || 'zedwriter-dev',
+      projectId: process.env.FIREBASE_PROJECT_ID,
     });
   }
 }
