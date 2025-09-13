@@ -15,6 +15,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { PaymentInfo } from '@/components/PaymentInfo';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Submission, User } from '@shared/schema';
@@ -389,9 +391,32 @@ export const DashboardPage = () => {
                             <TableCell>{formatCurrency(submission.amount)}</TableCell>
                             <TableCell>{formatDate(submission.createdAt ?? new Date())}</TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="sm" data-testid={`view-submission-details-${submission.id}`}>
-                                <i className="fas fa-eye mr-1"></i>View
-                              </Button>
+                              <div className="flex space-x-2">
+                                <Button variant="ghost" size="sm" data-testid={`view-submission-details-${submission.id}`}>
+                                  <i className="fas fa-eye mr-1"></i>View
+                                </Button>
+                                {((submission.amount || 0) - (submission.paidAmount || 0)) > 0 && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" data-testid={`pay-submission-${submission.id}`}>
+                                        <i className="fas fa-credit-card mr-1"></i>Pay
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                      <DialogHeader>
+                                        <DialogTitle>Payment for: {submission.title || 'Submission'}</DialogTitle>
+                                      </DialogHeader>
+                                      <PaymentInfo
+                                        workType={submission.type}
+                                        paymentArrangement={submission.paymentArrangement || '50_50'}
+                                        totalAmount={submission.amount || 0}
+                                        paidAmount={submission.paidAmount || 0}
+                                        submissionId={submission.id}
+                                      />
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
