@@ -3,17 +3,14 @@ import { getAuth, onAuthStateChanged, signOut, User, GoogleAuthProvider, signInW
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// Check if Firebase environment variables are configured
-const hasFirebaseConfig = !!(import.meta.env.VITE_FIREBASE_API_KEY);
-
 // Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter"}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter"}.firebasestorage.app`,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:demo",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
@@ -22,21 +19,23 @@ let auth: any = null;
 let db: any = null;
 let storage: any = null;
 
+// Initialize Firebase
 try {
-  if (hasFirebaseConfig) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
-  } else {
-    console.warn("Firebase configuration missing. Authentication and cloud features will be disabled.");
-    // Create mock objects that won't cause errors
-    auth = null;
-    db = null;
-    storage = null;
-  }
+  console.log('Initializing Firebase with config:', {
+    apiKey: firebaseConfig.apiKey ? '***' : 'missing',
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain,
+  });
+  
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+  
+  console.log('Firebase initialized successfully');
 } catch (error) {
   console.error("Firebase initialization failed:", error);
+  console.warn("Authentication and cloud features will be disabled.");
   auth = null;
   db = null;
   storage = null;
@@ -99,7 +98,7 @@ const googleProvider = new GoogleAuthProvider();
 // Google Sign In
 export const signInWithGoogle = async () => {
   if (!auth) {
-    throw new Error('Firebase auth not initialized');
+    throw new Error('Firebase auth not initialized. Please check your Firebase configuration in .env file.');
   }
   
   try {
