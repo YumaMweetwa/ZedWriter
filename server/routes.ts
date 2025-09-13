@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { authenticateToken, optionalAuth } from "./middleware/auth";
 import { upload, validateFileUpload } from "./middleware/upload";
-import { insertSubmissionSchema } from "@shared/schema";
+import { insertSubmissionSchema, insertPaymentSchema } from "@shared/schema";
 import "./firebase-admin"; // Initialize Firebase Admin
 import { GoogleGenAI } from "@google/genai";
 
@@ -474,6 +474,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error generating topics:', error);
       res.status(500).json({ error: 'Failed to generate topics' });
+    }
+  });
+
+  // Payment confirmation route  
+  app.post('/api/payments/confirm', authenticateToken, async (req, res) => {
+    try {
+      // Validate the request body using Zod schema
+      const paymentValidation = insertPaymentSchema.extend({
+        submissionId: insertPaymentSchema.shape.submissionId.refine(val => val !== null, 'submissionId is required'),
+        transactionId: insertPaymentSchema.shape.transactionId.refine(val => val !== null, 'transactionId is required'),
+        amount: insertPaymentSchema.shape.amount.min(1, 'amount must be positive')
+      }).safeParse({
+        ...req.body,
+        userId: req.user!.userId,
+        status: 'pending',
+        method: 'mobile_money'
+      });
+
+      if (!paymentValidation.success) {
+        return res.status(400).json({ 
+          error: 'Invalid payment data',
+          details: paymentValidation.error.errors 
+        });
+      }
+
+      const { submissionId, transactionId, amount, description } = paymentValidation.data;
+      
+      // Verify the submission belongs to the authenticated user
+      const submission = await storage.getSubmission(submissionId!);
+      if (!submission) {
+        return res.status(404).json({ error: 'Submission not found' });
+      }
+      
+      if (submission.userId !== req.user!.userId) {
+        return res.status(403).json({ error: 'Access denied: You can only confirm payments for your own submissions' });
+      }
+
+      // Validate payment amount based on arrangement
+      const remainingAmount = (submission.amount || 0) - (submission.paidAmount || 0);
+      const paymentArrangement = submission.paymentArrangement || '50_50';
+      
+      let expectedAmount = 0;
+      switch (paymentArrangement) {
+        case '50_50':
+          expectedAmount = submission.paidAmount === 0 ? (submission.amount || 0) * 0.5 : remainingAmount;
+          break;
+        case 'full_upfront':
+          expectedAmount = submission.amount || 0;
+          break;
+        case 'full_completion':
+          expectedAmount = submission.paidAmount === 0 ? 0 : remainingAmount;
+          break;
+      }
+      
+      if (Math.abs(amount - expectedAmount) > 1) { // Allow 1 kwacha tolerance
+        return res.status(400).json({ 
+          error: `Invalid payment amount. Expected K${expectedAmount} for ${paymentArrangement} arrangement` 
+        });
+      }
+
+      // Check for duplicate transaction ID for this submission
+      const existingPayment = await storage.getPaymentByTransactionId(transactionId!, submissionId!);
+      if (existingPayment) {
+        return res.status(409).json({ 
+          error: 'Transaction ID already used for this submission',
+          payment: existingPayment 
+        });
+      }
+      
+      // Create payment record with pending status (requires admin verification)
+      const payment = await storage.createPayment({
+        userId: req.user!.userId,
+        submissionId: submissionId!,
+        transactionId: transactionId!,
+        amount,
+        status: 'pending',
+        description: description || `Payment confirmation for ${submission.title || 'submission'}`,
+        method: 'mobile_money'
+      });
+      
+      res.json({ 
+        success: true, 
+        message: 'Payment confirmation received. We will verify and update your submission status shortly.',
+        payment 
+      });
+    } catch (error) {
+      console.error('Error confirming payment:', error);
+      res.status(500).json({ error: 'Failed to confirm payment' });
+    }
+  });
+
+  // Admin payment adjustment route
+  app.post('/api/admin/adjust-payment', authenticateToken, async (req, res) => {
+    try {
+      // Check if the user has admin role to adjust payments
+      const user = await storage.getUser(req.user!.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied: Admin role required to adjust payments' });
+      }
+      
+      const { submissionId, amount, description, transactionId } = req.body;
+      
+      // Validate required fields
+      if (!submissionId || typeof amount !== 'number' || !description) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: submissionId, amount, and description are required' 
+        });
+      }
+      
+      // Verify the submission exists
+      const submission = await storage.getSubmission(submissionId);
+      if (!submission) {
+        return res.status(404).json({ error: 'Submission not found' });
+      }
+      
+      // Create payment record
+      const payment = await storage.createPayment({
+        userId: submission.userId,
+        submissionId,
+        amount,
+        status: 'completed',
+        description,
+        method: 'admin_adjustment',
+        transactionId: transactionId || undefined
+      });
+      
+      // Update submission paid amount
+      const currentPaidAmount = submission.paidAmount || 0;
+      const newPaidAmount = currentPaidAmount + amount;
+      
+      await storage.updateSubmission(submissionId, {
+        paidAmount: newPaidAmount,
+        // Update status if fully paid
+        status: newPaidAmount >= (submission.amount || 0) ? 'in_progress' : submission.status
+      });
+      
+      res.json({ 
+        success: true, 
+        message: 'Payment adjustment completed successfully',
+        payment 
+      });
+    } catch (error) {
+      console.error('Error adjusting payment:', error);
+      res.status(500).json({ error: 'Failed to adjust payment' });
     }
   });
 

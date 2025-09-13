@@ -116,9 +116,11 @@ export const payments = pgTable("payments", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   submissionId: varchar("submission_id").references(() => submissions.id),
   amount: integer("amount").notNull(),
-  method: text("method").notNull(), // mobile_money, bank_transfer
-  reference: text("reference"),
-  status: text("status").default("pending"), // pending, confirmed, failed
+  method: text("method").notNull(), // mobile_money, bank_transfer, admin_adjustment
+  transactionId: text("transaction_id"), // Mobile money transaction ID
+  reference: text("reference"), // Additional reference
+  description: text("description"), // Payment description
+  status: text("status").default("pending"), // pending, completed, failed
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

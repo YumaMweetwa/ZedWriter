@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Copy, CreditCard, Smartphone, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CONTACT_INFO, WORK_TYPES } from '@/utils/constants';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 interface PaymentInfoProps {
   workType: string;
@@ -38,7 +39,7 @@ export const PaymentInfo = ({
       case 'full_upfront':
         return totalAmount;
       case 'full_completion':
-        return totalAmount;
+        return paidAmount === 0 ? 0 : remainingAmount; // Don't charge until completion
       default:
         return totalAmount;
     }
@@ -66,7 +67,16 @@ export const PaymentInfo = ({
     });
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
+    if (paymentAmount === 0) {
+      // For full_completion with no payment due, just acknowledge
+      toast({
+        title: "No Payment Required",
+        description: "Payment will be due upon completion of your work.",
+      });
+      return;
+    }
+
     if (!transactionId.trim()) {
       toast({
         title: "Transaction ID Required",
@@ -76,13 +86,38 @@ export const PaymentInfo = ({
       return;
     }
 
-    // Here you would typically send the transaction ID to the backend
-    toast({
-      title: "Payment Confirmation Sent",
-      description: "We'll verify your payment and update your submission status soon.",
-    });
-    
-    setTransactionId('');
+    try {
+      const response = await apiRequest('POST', '/api/payments/confirm', {
+        submissionId,
+        transactionId: transactionId.trim(),
+        amount: paymentAmount,
+        description: `${getCurrentPaymentDescription()} for ${workInfo?.label || workType}`
+      });
+
+      const result = await response.json();
+      
+      toast({
+        title: "Payment Confirmation Sent",
+        description: result.message || "We'll verify your payment and update your submission status soon.",
+      });
+      
+      setTransactionId('');
+      
+      // Invalidate queries to refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['/api/submissions'] });
+      if (submissionId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/submissions', submissionId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/payments'] });
+      
+    } catch (error: any) {
+      console.error('Payment confirmation error:', error);
+      toast({
+        title: "Confirmation Failed",
+        description: error.message || "Failed to confirm payment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -165,14 +200,15 @@ export const PaymentInfo = ({
       </Card>
 
       {/* Payment Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-blue-600" />
-            <span>Payment Instructions</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {paymentAmount > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 text-blue-600" />
+              <span>Payment Instructions</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg space-y-3">
             <p className="font-semibold text-blue-800 dark:text-blue-200">
               Step-by-step payment process:
@@ -264,39 +300,77 @@ export const PaymentInfo = ({
           </div>
         </CardContent>
       </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              <span>Payment on Completion</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg">
+              <p className="text-orange-800 dark:text-orange-200">
+                <strong>No payment required at this time.</strong> According to your payment arrangement, 
+                payment will be due when your work is completed. We'll contact you when it's ready for payment and delivery.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Transaction Confirmation */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
-            <span>Confirm Payment</span>
+            <span>{paymentAmount > 0 ? 'Confirm Payment' : 'Acknowledge Instructions'}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="transaction-id">Transaction ID *</Label>
-            <Input
-              id="transaction-id"
-              placeholder="Enter your transaction ID"
-              value={transactionId}
-              onChange={(e) => setTransactionId(e.target.value)}
-              data-testid="input-transaction-id"
-            />
-          </div>
-          
-          <Button
-            onClick={handleConfirmPayment}
-            className="w-full"
-            data-testid="button-confirm-payment"
-          >
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Confirm Payment
-          </Button>
-          
-          <p className="text-xs text-muted-foreground text-center">
-            After confirming, we'll verify your payment within 15-30 minutes during business hours
-          </p>
+          {paymentAmount > 0 ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="transaction-id">Transaction ID *</Label>
+                <Input
+                  id="transaction-id"
+                  placeholder="Enter your transaction ID"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  data-testid="input-transaction-id"
+                />
+              </div>
+              
+              <Button
+                onClick={handleConfirmPayment}
+                className="w-full"
+                data-testid="button-confirm-payment"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Confirm Payment
+              </Button>
+              
+              <p className="text-xs text-muted-foreground text-center">
+                After confirming, we'll verify your payment within 15-30 minutes during business hours
+              </p>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={handleConfirmPayment}
+                className="w-full"
+                variant="outline"
+                data-testid="button-acknowledge"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                I Understand - Payment Due on Completion
+              </Button>
+              
+              <p className="text-xs text-muted-foreground text-center">
+                We'll contact you when your work is ready for payment and delivery
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

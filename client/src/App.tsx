@@ -13,6 +13,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ChatPage } from '@/pages/ChatPage';
 import { FirebaseDemo } from '@/pages/FirebaseDemo';
+import { AuthPage } from '@/pages/AuthPage';
 import { SubmissionWizard } from '@/components/SubmissionWizard';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
@@ -52,28 +53,9 @@ function App() {
                   {() => <SubmissionWizard preselectedType={getPreselectedType()} />}
                 </Route>
                 
-                {/* Auth pages - placeholder for now */}
-                <Route path="/auth/signin">
-                  {() => (
-                    <div className="min-h-screen flex items-center justify-center">
-                      <div className="text-center">
-                        <h2 className="text-2xl font-bold mb-4">Sign In</h2>
-                        <p className="text-muted-foreground">Authentication interface to be implemented</p>
-                      </div>
-                    </div>
-                  )}
-                </Route>
-                
-                <Route path="/auth/signup">
-                  {() => (
-                    <div className="min-h-screen flex items-center justify-center">
-                      <div className="text-center">
-                        <h2 className="text-2xl font-bold mb-4">Sign Up</h2>
-                        <p className="text-muted-foreground">Registration interface to be implemented</p>
-                      </div>
-                    </div>
-                  )}
-                </Route>
+                {/* Authentication pages */}
+                <Route path="/auth/signin" component={AuthPage} />
+                <Route path="/auth/signup" component={AuthPage} />
 
                 {/* 404 */}
                 <Route>

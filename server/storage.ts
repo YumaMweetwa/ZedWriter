@@ -69,7 +69,9 @@ export interface IStorage {
 
   // Payment operations
   getPaymentsByUser(userId: string): Promise<Payment[]>;
+  getPaymentByTransactionId(transactionId: string, submissionId: string): Promise<Payment | undefined>;
   createPayment(payment: InsertPayment): Promise<Payment>;
+  updatePayment(id: string, updates: Partial<Payment>): Promise<Payment>;
 
   // Admin operations
   getAdminStats(): Promise<{
@@ -221,8 +223,23 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(payments).where(eq(payments.userId, userId)).orderBy(desc(payments.createdAt));
   }
 
+  async getPaymentByTransactionId(transactionId: string, submissionId: string): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(
+      and(
+        eq(payments.transactionId, transactionId),
+        eq(payments.submissionId, submissionId)
+      )
+    );
+    return payment || undefined;
+  }
+
   async createPayment(insertPayment: InsertPayment): Promise<Payment> {
     const [payment] = await db.insert(payments).values(insertPayment).returning();
+    return payment;
+  }
+
+  async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment> {
+    const [payment] = await db.update(payments).set(updates).where(eq(payments.id, id)).returning();
     return payment;
   }
 
