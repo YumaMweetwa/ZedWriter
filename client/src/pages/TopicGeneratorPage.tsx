@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { BackButton } from '@/components/BackButton';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -144,6 +145,7 @@ export const TopicGeneratorPage = () => {
   return (
     <div className="min-h-screen py-12 bg-background">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <BackButton />
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground mb-4">Research Topic Generator</h1>
           <p className="text-muted-foreground">Get platform-generated suggestions for your research topics</p>

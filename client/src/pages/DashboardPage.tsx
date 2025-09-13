@@ -24,6 +24,7 @@ import { createInsertSchema } from 'drizzle-zod';
 import { users } from '@shared/schema';
 import { z } from 'zod';
 import { CONTACT_INFO } from '@/utils/constants';
+import { BackButton } from '@/components/BackButton';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
@@ -123,6 +124,7 @@ export const DashboardPage = () => {
   return (
     <div className="min-h-screen py-8 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <BackButton />
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

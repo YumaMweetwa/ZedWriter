@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { BackButton } from '@/components/BackButton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -91,6 +92,7 @@ export const MaterialsPage = () => {
   return (
     <div className="min-h-screen py-12 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <BackButton />
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Study Materials</h1>
           <p className="text-muted-foreground">Access study notes, past papers, and resources for your program</p>
