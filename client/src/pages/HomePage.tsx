@@ -7,7 +7,10 @@ export const HomePage = () => {
   return (
     <div className="min-h-screen">
       <HeroSection />
-      <HowItWorks />
+      
+      {/* Visual separation - different background for sections below */}
+      <div className="bg-muted/20">
+        <HowItWorks />
       
       {/* Trust Badges Section */}
       <section className="py-16 bg-muted/30">
@@ -36,8 +39,9 @@ export const HomePage = () => {
         </div>
       </section>
 
-      <PricingSection />
-      <ContactSection />
+        <PricingSection />
+        <ContactSection />
+      </div>
     </div>
   );
 };
