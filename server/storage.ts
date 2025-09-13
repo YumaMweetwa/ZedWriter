@@ -130,12 +130,33 @@ export class FirestoreStorage implements IStorage {
     };
   }
 
+  // Convert Firestore document to proper types with date conversion
+  private convertFirestoreDoc<T>(doc: any): T {
+    const data = doc.data();
+    const converted = { id: doc.id, ...data };
+    
+    // Convert Firestore Timestamps to ISO strings for API compatibility
+    if (converted.createdAt && converted.createdAt.toDate) {
+      converted.createdAt = converted.createdAt.toDate().toISOString();
+    }
+    if (converted.updatedAt && converted.updatedAt.toDate) {
+      converted.updatedAt = converted.updatedAt.toDate().toISOString();
+    }
+    
+    return converted as T;
+  }
+
+  // Convert array of Firestore documents
+  private convertFirestoreDocs<T>(docs: any[]): T[] {
+    return docs.map(doc => this.convertFirestoreDoc<T>(doc));
+  }
+
   // User operations
   async getUser(id: string): Promise<User | undefined> {
     try {
       const userDoc = await this.db.collection('users').doc(id).get();
       if (!userDoc.exists) return undefined;
-      return { id: userDoc.id, ...userDoc.data() } as User;
+      return this.convertFirestoreDoc<User>(userDoc);
     } catch (error) {
       console.error('Error getting user:', error);
       return undefined;
@@ -144,10 +165,19 @@ export class FirestoreStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
-      const usersQuery = await this.db.collection('users').where('email', '==', username).limit(1).get();
-      if (usersQuery.empty) return undefined;
-      const userDoc = usersQuery.docs[0];
-      return { id: userDoc.id, ...userDoc.data() } as User;
+      // First try by email (for backward compatibility)
+      let usersQuery = await this.db.collection('users').where('email', '==', username).limit(1).get();
+      if (!usersQuery.empty) {
+        return this.convertFirestoreDoc<User>(usersQuery.docs[0]);
+      }
+      
+      // Then try by actual username field if it exists
+      usersQuery = await this.db.collection('users').where('username', '==', username).limit(1).get();
+      if (!usersQuery.empty) {
+        return this.convertFirestoreDoc<User>(usersQuery.docs[0]);
+      }
+      
+      return undefined;
     } catch (error) {
       console.error('Error getting user by username:', error);
       return undefined;
@@ -158,8 +188,7 @@ export class FirestoreStorage implements IStorage {
     try {
       const usersQuery = await this.db.collection('users').where('firebaseUid', '==', firebaseUid).limit(1).get();
       if (usersQuery.empty) return undefined;
-      const userDoc = usersQuery.docs[0];
-      return { id: userDoc.id, ...userDoc.data() } as User;
+      return this.convertFirestoreDoc<User>(usersQuery.docs[0]);
     } catch (error) {
       console.error('Error getting user by Firebase UID:', error);
       return undefined;
@@ -169,7 +198,7 @@ export class FirestoreStorage implements IStorage {
   async getAllUsers(): Promise<User[]> {
     try {
       const usersQuery = await this.db.collection('users').orderBy('createdAt', 'desc').get();
-      return usersQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      return this.convertFirestoreDocs<User>(usersQuery.docs);
     } catch (error) {
       console.error('Error getting all users:', error);
       return [];
@@ -180,7 +209,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const userWithTimestamps = this.addTimestamps(insertUser);
       const userRef = await this.db.collection('users').add(userWithTimestamps);
-      return { id: userRef.id, ...userWithTimestamps } as User;
+      const newDoc = await userRef.get();
+      return this.convertFirestoreDoc<User>(newDoc);
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
@@ -192,7 +222,7 @@ export class FirestoreStorage implements IStorage {
       const updatesWithTimestamp = this.updateTimestamp(updates);
       await this.db.collection('users').doc(id).update(updatesWithTimestamp);
       const updatedDoc = await this.db.collection('users').doc(id).get();
-      return { id: updatedDoc.id, ...updatedDoc.data() } as User;
+      return this.convertFirestoreDoc<User>(updatedDoc);
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
@@ -204,7 +234,7 @@ export class FirestoreStorage implements IStorage {
     try {
       const submissionDoc = await this.db.collection('submissions').doc(id).get();
       if (!submissionDoc.exists) return undefined;
-      return { id: submissionDoc.id, ...submissionDoc.data() } as Submission;
+      return this.convertFirestoreDoc<Submission>(submissionDoc);
     } catch (error) {
       console.error('Error getting submission:', error);
       return undefined;
@@ -217,7 +247,7 @@ export class FirestoreStorage implements IStorage {
         .where('userId', '==', userId)
         .orderBy('createdAt', 'desc')
         .get();
-      return submissionsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission));
+      return this.convertFirestoreDocs<Submission>(submissionsQuery.docs);
     } catch (error) {
       console.error('Error getting submissions by user:', error);
       return [];
@@ -229,7 +259,7 @@ export class FirestoreStorage implements IStorage {
       const submissionsQuery = await this.db.collection('submissions')
         .orderBy('createdAt', 'desc')
         .get();
-      return submissionsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission));
+      return this.convertFirestoreDocs<Submission>(submissionsQuery.docs);
     } catch (error) {
       console.error('Error getting all submissions:', error);
       return [];
@@ -240,7 +270,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const submissionWithTimestamps = this.addTimestamps(insertSubmission);
       const submissionRef = await this.db.collection('submissions').add(submissionWithTimestamps);
-      return { id: submissionRef.id, ...submissionWithTimestamps } as Submission;
+      const newDoc = await submissionRef.get();
+      return this.convertFirestoreDoc<Submission>(newDoc);
     } catch (error) {
       console.error('Error creating submission:', error);
       throw error;
@@ -252,7 +283,7 @@ export class FirestoreStorage implements IStorage {
       const updatesWithTimestamp = this.updateTimestamp(updates);
       await this.db.collection('submissions').doc(id).update(updatesWithTimestamp);
       const updatedDoc = await this.db.collection('submissions').doc(id).get();
-      return { id: updatedDoc.id, ...updatedDoc.data() } as Submission;
+      return this.convertFirestoreDoc<Submission>(updatedDoc);
     } catch (error) {
       console.error('Error updating submission:', error);
       throw error;
@@ -550,10 +581,11 @@ export class FirestoreStorage implements IStorage {
   }> {
     try {
       // Get all collections data in parallel for performance
-      const [usersSnapshot, submissionsSnapshot, activeUsersSnapshot] = await Promise.all([
+      const [usersSnapshot, submissionsSnapshot, activeUsersSnapshot, paymentsSnapshot] = await Promise.all([
         this.db.collection('users').get(),
         this.db.collection('submissions').get(),
-        this.db.collection('users').where('isActive', '==', true).get()
+        this.db.collection('users').where('isActive', '==', true).get(),
+        this.db.collection('payments').get()
       ]);
 
       // Calculate stats from the data
@@ -561,17 +593,21 @@ export class FirestoreStorage implements IStorage {
       const totalSubmissions = submissionsSnapshot.size;
       const activeUsers = activeUsersSnapshot.size;
 
-      // Calculate pending submissions and revenue
+      // Calculate pending submissions from submissions collection
       let pendingSubmissions = 0;
-      let totalRevenue = 0;
-
       submissionsSnapshot.docs.forEach(doc => {
         const submission = doc.data() as Submission;
         if (submission.status === 'pending') {
           pendingSubmissions++;
         }
-        if (submission.paidAmount) {
-          totalRevenue += Number(submission.paidAmount);
+      });
+
+      // Calculate total revenue from payments collection
+      let totalRevenue = 0;
+      paymentsSnapshot.docs.forEach(doc => {
+        const payment = doc.data() as Payment;
+        if (payment.amount && payment.status === 'completed') {
+          totalRevenue += Number(payment.amount);
         }
       });
 
