@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { getCurrentUser } from '@/lib/auth';
+import { User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChange } from '@/lib/firebase';
 import { User } from '@shared/schema';
 
 interface AuthContextType {
@@ -31,31 +30,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   const refreshUser = async () => {
-    if (firebaseUser) {
-      try {
-        const userData = await getCurrentUser();
-        setUser(userData);
-      } catch (error) {
-        console.error('Error refreshing user:', error);
-        setUser(null);
-      }
-    } else {
-      setUser(null);
-    }
+    // For now, without Firebase auth, just clear the user
+    setUser(null);
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
       setFirebaseUser(firebaseUser);
       
       if (firebaseUser) {
-        try {
-          const userData = await getCurrentUser();
-          setUser(userData);
-        } catch (error) {
-          console.error('Error getting user data:', error);
-          setUser(null);
-        }
+        // TODO: Implement user data fetching when Firebase is configured
+        setUser(null);
       } else {
         setUser(null);
       }
