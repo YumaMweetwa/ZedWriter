@@ -30,8 +30,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   const refreshUser = async () => {
-    // For now, without Firebase auth, just clear the user
-    setUser(null);
+    if (firebaseUser) {
+      try {
+        const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`);
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error refreshing user:', error);
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
   };
 
   useEffect(() => {
@@ -39,8 +53,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setFirebaseUser(firebaseUser);
       
       if (firebaseUser) {
-        // TODO: Implement user data fetching when Firebase is configured
-        setUser(null);
+        try {
+          const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`);
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setUser(null);
+        }
       } else {
         setUser(null);
       }

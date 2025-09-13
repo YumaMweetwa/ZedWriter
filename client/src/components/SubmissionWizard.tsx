@@ -14,7 +14,7 @@ import { generateId, calculateAmount } from '@/utils/helpers';
 import { validateFile, formatFileSize } from '@/lib/storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { useFirestoreOperations } from '@/hooks/useFirestore';
+import { apiRequest } from '@/lib/queryClient';
 import { WORK_TYPES, PAYMENT_METHODS, PAYMENT_ARRANGEMENTS } from '@/utils/constants';
 
 const submissionSchema = z.object({
@@ -49,7 +49,6 @@ export const SubmissionWizard = ({ preselectedType }: SubmissionWizardProps) => 
   const [uploadedFiles, setUploadedFiles] = useState<FileUpload[]>([]);
   const { user } = useAuth();
   const { showToast, setLoading } = useApp();
-  const { addDocument } = useFirestoreOperations();
 
   const form = useForm<SubmissionFormValues>({
     resolver: zodResolver(submissionSchema),
@@ -191,7 +190,8 @@ export const SubmissionWizard = ({ preselectedType }: SubmissionWizardProps) => 
         status: 'pending',
       };
 
-      const submissionId = await addDocument('submissions', submissionData);
+      const response = await apiRequest('POST', '/api/submissions', submissionData);
+      const submission = await response.json();
       
       showToast({
         type: 'success',
