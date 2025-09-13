@@ -1,0 +1,330 @@
+// Gemini AI Integration
+async function generateWithGemini(formData) {
+    const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE'; // Replace with your actual API key
+    
+    if (GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+        throw new Error('Please set your Gemini API key');
+    }
+    
+    const prompt = createResearchPrompt(formData);
+    console.log('Sending prompt to Gemini:', prompt);
+    
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.8,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 1024
+                }
+            })
+        });
+        
+        console.log('Gemini API response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Gemini API error:', errorText);
+            throw new Error(`API request failed: ${response.status} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Gemini API response data:', data);
+        
+        if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+            const generatedText = data.candidates[0].content.parts[0].text;
+            console.log('Generated text:', generatedText);
+            const topics = parseAITopics(generatedText);
+            console.log('Parsed topics:', topics);
+            
+            if (topics.length === 0) {
+                throw new Error('No valid topics could be parsed from AI response');
+            }
+            
+            return topics;
+        } else {
+            console.error('Unexpected response structure:', data);
+            throw new Error('Invalid response structure from Gemini API');
+        }
+        
+    } catch (error) {
+        console.error('Gemini API call failed:', error);
+        throw error;
+    }
+}
+
+// Create optimized prompt for research topics
+function createResearchPrompt(formData) {
+    let prompt = `Generate research topics in not more than 20 words each based on the provided selections.
+
+MANDATORY INFORMATION (MUST be included in EVERY topic):
+- Domain: ${formData.domain}
+- Department: ${formData.department}
+- Study Area: ${formData.studyArea} (MUST appear in every topic)`;
+
+    // Add keywords as mandatory if provided
+    if (formData.keywords) {
+        prompt += `
+- Research Keywords: ${formData.keywords} (MUST be incorporated in every topic)`;
+    }
+
+    // Add additional requirements as mandatory if provided
+    if (formData.comments) {
+        prompt += `
+- Additional Requirements: ${formData.comments} (MUST be considered in every topic)`;
+    }
+
+    prompt += `
+
+STRICT REQUIREMENTS:
+1. Every topic MUST include the study area "${formData.studyArea}"
+2. Every topic MUST be related to ${formData.domain} and ${formData.department}`;
+
+    // Add mandatory keywords requirement
+    if (formData.keywords) {
+        prompt += `
+3. Every topic MUST incorporate the keywords "${formData.keywords}"`;
+    }
+
+    // Add mandatory additional requirements
+    if (formData.comments) {
+        const reqNumber = formData.keywords ? 4 : 3;
+        prompt += `
+${reqNumber}. Every topic MUST consider the additional requirements: "${formData.comments}"`;
+    }
+
+    const nextReqNumber = (formData.keywords && formData.comments) ? 5 : formData.keywords || formData.comments ? 4 : 3;
+    
+    prompt += `
+${nextReqNumber}. Each topic should be specific, measurable, and achievable
+${nextReqNumber + 1}. Address current gaps in ${formData.domain.toLowerCase()} research  
+${nextReqNumber + 2}. Consider ethical feasibility and resource constraints
+${nextReqNumber + 3}. Each topic should be not more than 20 words
+${nextReqNumber + 4}. Focus on innovation, feasibility, and clinical/public health significance
+
+Format: Return exactly 6 numbered research titles:
+1. [First topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]
+2. [Second topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]  
+3. [Third topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]
+4. [Fourth topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]
+5. [Fifth topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]
+6. [Sixth topic - max 20 words, MUST include study area "${formData.studyArea}"`;
+
+    if (formData.keywords) {
+        prompt += `, MUST include keywords "${formData.keywords}"`;
+    }
+    if (formData.comments) {
+        prompt += `, MUST consider: "${formData.comments}"`;
+    }
+
+    prompt += `]
+
+REMEMBER: The study area "${formData.studyArea}" is MANDATORY and must appear in every single topic title.`;
+
+    if (formData.keywords) {
+        prompt += ` The keywords "${formData.keywords}" are MANDATORY and must be incorporated in every topic.`;
+    }
+
+    if (formData.comments) {
+        prompt += ` The additional requirements "${formData.comments}" are MANDATORY and must be considered in every topic.`;
+    }
+
+    return prompt;
+}
+
+// Parse AI response to extract topics
+function parseAITopics(text) {
+    console.log('Parsing AI text:', text);
+    const lines = text.split('\n').filter(line => line.trim());
+    const topics = [];
+    
+    lines.forEach(line => {
+        // Match numbered items (1., 2., etc.) or bullet points
+        const numberedMatch = line.match(/^\d+\.\s*(.+)/);
+        const bulletMatch = line.match(/^[-*]\s*(.+)/);
+        
+        if (numberedMatch) {
+            let topic = numberedMatch[1].trim();
+            // Remove trailing periods and clean up
+            topic = topic.replace(/\.$/, '').replace(/"/g, '');
+            if (topic.length > 10) { // Ensure it's a substantial topic
+                topics.push(topic);
+            }
+        } else if (bulletMatch) {
+            let topic = bulletMatch[1].trim();
+            topic = topic.replace(/\.$/, '').replace(/"/g, '');
+            if (topic.length > 10) {
+                topics.push(topic);
+            }
+        }
+    });
+    
+    // If no numbered/bulleted items found, try to extract topics from paragraphs
+    if (topics.length === 0) {
+        const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        sentences.slice(0, 6).forEach(sentence => {
+            const cleaned = sentence.trim().replace(/"/g, '');
+            if (cleaned.length > 10) {
+                topics.push(cleaned);
+            }
+        });
+    }
+    
+    console.log('Extracted topics:', topics);
+    return topics.slice(0, 6); // Return exactly 6 topics max
+}
+
+// Main generation function with error handling
+async function generateTopics() {
+    const generateBtn = document.getElementById('generate-btn');
+    const btnText = document.getElementById('btn-text');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const resultsSection = document.getElementById('results-section');
+    
+    generateBtn.disabled = true;
+    btnText.textContent = '🤖 AI is generating topics...';
+    loadingSpinner.style.display = 'block';
+    resultsSection.style.display = 'none';
+    
+    try {
+        const formData = getFormData();
+        
+        // Try AI generation first
+        const aiTopics = await generateWithGemini(formData);
+        
+        if (aiTopics && aiTopics.length > 0) {
+            // Display AI-generated topics
+            displayTopics(aiTopics);
+            showNotification('✨ AI-powered research topics generated successfully!', 'success');
+        } else {
+            throw new Error('No AI topics generated');
+        }
+        
+        // Show results
+        resultsSection.style.display = 'block';
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        
+    } catch (error) {
+        console.error('AI Generation failed:', error);
+        
+        // Show specific error message based on the type of error
+        let errorMessage = '⚠️ AI generation failed. ';
+        if (error.message.includes('API request failed')) {
+            errorMessage += 'API request error. Please check your internet connection.';
+        } else if (error.message.includes('No valid topics')) {
+            errorMessage += 'Could not parse AI response. Using fallback topics.';
+        } else if (error.message.includes('Invalid response structure')) {
+            errorMessage += 'Unexpected API response format. Using fallback topics.';
+        } else {
+            errorMessage += 'Using enhanced fallback topics.';
+        }
+        
+        showNotification(errorMessage, 'warning');
+        
+        // Enhanced fallback with better topics
+        const formData = getFormData();
+        const fallbackTopics = generateEnhancedTopics(formData);
+        displayTopics(fallbackTopics);
+        resultsSection.style.display = 'block';
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+        
+    } finally {
+        // Reset button state
+        generateBtn.disabled = false;
+        btnText.textContent = 'Generate Research Topics';
+        loadingSpinner.style.display = 'none';
+    }
+}
+
+// Show notification to user
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        background: ${type === 'success' ? '#10b981' : '#f59e0b'};
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        z-index: 1001;
+        font-weight: 500;
+        max-width: 350px;
+        font-size: 14px;
+        animation: slideIn 0.3s ease;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 4000);
+}
+
+// Get form data helper function
+function getFormData() {
+    return {
+        domain: document.getElementById('domain').value || 'Medical',
+        department: document.getElementById('department').value || 'General Medicine',
+        studyArea: document.getElementById('study-area').value,
+        keywords: document.getElementById('keywords').value,
+        comments: document.getElementById('comments').value.trim()
+    };
+}

@@ -6,6 +6,10 @@ import { authenticateToken, optionalAuth } from "./middleware/auth";
 import { upload, validateFileUpload } from "./middleware/upload";
 import { insertSubmissionSchema } from "@shared/schema";
 import "./firebase-admin"; // Initialize Firebase Admin
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize Gemini AI with API key from environment
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -14,7 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ 
     server: httpServer, 
     path: '/ws',
-    verifyClient: (info) => {
+    verifyClient: (info: any) => {
       // Add authentication verification here if needed
       return true;
     }
@@ -440,32 +444,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Topic generation route (mock implementation)
+  // Topic generation route with Gemini AI
   app.post('/api/generate-topics', authenticateToken, async (req, res) => {
     try {
-      const { domain, subdomain, keywords, studyArea, requirements } = req.body;
+      const { domain, department, studyArea, keywords, comments } = req.body;
       
-      // Mock topic generation - in production this would call an AI service
-      const mockTopics = [
-        {
-          id: '1',
-          title: `The Impact of ${keywords[0] || 'Technology'} on ${domain || 'Health'} in Zambia`,
-          description: `This research investigates the role of ${keywords[0] || 'technology'} in improving ${domain || 'health'} outcomes, focusing on ${studyArea || 'rural communities'}.`,
-          keywords: keywords || ['Technology', domain, 'Zambia'],
-          difficulty: 'Moderate',
-          duration: '3-4 months'
-        },
-        {
-          id: '2',
-          title: `Evaluating ${subdomain || 'Digital Solutions'} for ${domain || 'Healthcare'} Delivery`,
-          description: `An analysis of how ${subdomain || 'digital solutions'} can enhance service delivery in the ${domain || 'healthcare'} sector.`,
-          keywords: keywords || [subdomain, domain, 'Innovation'],
-          difficulty: 'Intermediate',
-          duration: '4-5 months'
-        }
-      ];
-
-      res.json({ topics: mockTopics });
+      // Validate required fields
+      if (!domain || !department || !studyArea) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: domain, department, and studyArea are required' 
+        });
+      }
+      
+      // Generate research topics using Gemini AI
+      try {
+        const topics = await generateResearchTopics({ domain, department, studyArea, keywords, comments });
+        res.json({ success: true, topics });
+      } catch (aiError) {
+        console.error('AI generation failed:', aiError);
+        
+        // Fallback to enhanced local generation if AI fails
+        const fallbackTopics = generateEnhancedFallbackTopics({ domain, department, studyArea, keywords, comments });
+        res.json({ 
+          success: true, 
+          topics: fallbackTopics,
+          note: 'Generated using enhanced fallback method due to AI service unavailability'
+        });
+      }
     } catch (error) {
       console.error('Error generating topics:', error);
       res.status(500).json({ error: 'Failed to generate topics' });
@@ -495,4 +500,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   return httpServer;
+}
+
+// Gemini AI helper function for research topic generation
+async function generateResearchTopics(formData: { 
+  domain: string; 
+  department: string; 
+  studyArea: string; 
+  keywords?: string; 
+  comments?: string; 
+}) {
+  const prompt = createResearchPrompt(formData);
+  
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+    config: {
+      temperature: 0.8,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 1024
+    }
+  });
+
+  if (response.text) {
+    const topics = parseAITopics(response.text);
+    if (topics.length === 0) {
+      throw new Error('No valid topics could be parsed from AI response');
+    }
+    return topics;
+  } else {
+    throw new Error('Invalid response structure from Gemini API');
+  }
+}
+
+// Create optimized prompt for research topics
+function createResearchPrompt(formData: { 
+  domain: string; 
+  department: string; 
+  studyArea: string; 
+  keywords?: string; 
+  comments?: string; 
+}) {
+  let prompt = `Generate research topics in not more than 20 words each based on the provided selections.
+
+MANDATORY INFORMATION (MUST be included in EVERY topic):
+- Domain: ${formData.domain}
+- Department: ${formData.department}
+- Study Area: ${formData.studyArea} (MUST appear in every topic)`;
+
+  if (formData.keywords) {
+    prompt += `
+- Research Keywords: ${formData.keywords} (MUST be incorporated in every topic)`;
+  }
+
+  if (formData.comments) {
+    prompt += `
+- Additional Requirements: ${formData.comments} (MUST be considered in every topic)`;
+  }
+
+  prompt += `
+
+STRICT REQUIREMENTS:
+1. Every topic MUST include the study area "${formData.studyArea}"
+2. Every topic MUST be related to ${formData.domain} and ${formData.department}`;
+
+  if (formData.keywords) {
+    prompt += `
+3. Every topic MUST incorporate the keywords "${formData.keywords}"`;
+  }
+
+  if (formData.comments) {
+    const reqNumber = formData.keywords ? 4 : 3;
+    prompt += `
+${reqNumber}. Every topic MUST consider the additional requirements: "${formData.comments}"`;
+  }
+
+  const nextReqNumber = (formData.keywords && formData.comments) ? 5 : formData.keywords || formData.comments ? 4 : 3;
+  
+  prompt += `
+${nextReqNumber}. Each topic should be specific, measurable, and achievable
+${nextReqNumber + 1}. Address current gaps in ${formData.domain.toLowerCase()} research  
+${nextReqNumber + 2}. Consider ethical feasibility and resource constraints
+${nextReqNumber + 3}. Each topic should be not more than 20 words
+${nextReqNumber + 4}. Focus on innovation, feasibility, and academic significance
+
+Format: Return exactly 6 numbered research titles:
+1. [First topic - max 20 words, MUST include study area "${formData.studyArea}"]
+2. [Second topic - max 20 words, MUST include study area "${formData.studyArea}"]
+3. [Third topic - max 20 words, MUST include study area "${formData.studyArea}"]
+4. [Fourth topic - max 20 words, MUST include study area "${formData.studyArea}"]
+5. [Fifth topic - max 20 words, MUST include study area "${formData.studyArea}"]
+6. [Sixth topic - max 20 words, MUST include study area "${formData.studyArea}"]
+
+REMEMBER: The study area "${formData.studyArea}" is MANDATORY and must appear in every single topic title.`;
+
+  return prompt;
+}
+
+// Parse AI response to extract topics
+function parseAITopics(text: string): string[] {
+  const lines = text.split('\n').filter(line => line.trim());
+  const topics: string[] = [];
+  
+  lines.forEach(line => {
+    // Match numbered items (1., 2., etc.) or bullet points
+    const numberedMatch = line.match(/^\d+\.\s*(.+)/);
+    const bulletMatch = line.match(/^[-*]\s*(.+)/);
+    
+    if (numberedMatch) {
+      let topic = numberedMatch[1].trim();
+      // Remove trailing periods and clean up
+      topic = topic.replace(/\.$/, '').replace(/"/g, '').replace(/\[|\]/g, '');
+      if (topic.length > 10) { // Ensure it's a substantial topic
+        topics.push(topic);
+      }
+    } else if (bulletMatch) {
+      let topic = bulletMatch[1].trim();
+      topic = topic.replace(/\.$/, '').replace(/"/g, '').replace(/\[|\]/g, '');
+      if (topic.length > 10) {
+        topics.push(topic);
+      }
+    }
+  });
+  
+  // If no numbered/bulleted items found, try to extract topics from paragraphs
+  if (topics.length === 0) {
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    sentences.slice(0, 6).forEach(sentence => {
+      const cleaned = sentence.trim().replace(/"/g, '');
+      if (cleaned.length > 10) {
+        topics.push(cleaned);
+      }
+    });
+  }
+  
+  return topics.slice(0, 6); // Return exactly 6 topics max
+}
+
+// Enhanced fallback topic generation
+function generateEnhancedFallbackTopics(formData: { 
+  domain: string; 
+  department: string; 
+  studyArea: string; 
+  keywords?: string; 
+  comments?: string; 
+}): string[] {
+  const { domain, department, studyArea, keywords } = formData;
+  
+  const fallbackTemplates = [
+    `Impact of Digital Technology on ${studyArea} in ${department}`,
+    `${studyArea} Management Strategies in ${domain} Sector`,
+    `Evaluating ${studyArea} Practices in Modern ${department}`,
+    `Innovation and ${studyArea} Development in ${domain}`,
+    `Sustainable Approaches to ${studyArea} in ${department}`,
+    `${studyArea} Quality Improvement in ${domain} Services`
+  ];
+  
+  // Incorporate keywords if provided
+  const topics = fallbackTemplates.map(template => {
+    if (keywords) {
+      return template.replace(studyArea, `${keywords} ${studyArea}`);
+    }
+    return template;
+  });
+  
+  return topics.slice(0, 6);
 }
