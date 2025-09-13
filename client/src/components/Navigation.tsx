@@ -24,7 +24,6 @@ export const Navigation = () => {
     { href: '/pricing', label: 'Pricing' },
     { href: '/materials', label: 'Materials' },
     { href: '/firebase-demo', label: 'Firebase Demo' },
-    ...(user ? [{ href: '/dashboard', label: 'Dashboard' }] : []),
   ];
 
   const getUserInitials = (firstName?: string, lastName?: string) => {
@@ -160,6 +159,25 @@ export const Navigation = () => {
                       </Link>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/about" data-testid="user-menu-about">
+                      <i className="fas fa-info-circle mr-2"></i>
+                      About us
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/terms" data-testid="user-menu-terms">
+                      <i className="fas fa-file-contract mr-2"></i>
+                      Terms & Conditions
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/support" data-testid="user-menu-support">
+                      <i className="fas fa-heart mr-2"></i>
+                      Support us
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={handleLogout}

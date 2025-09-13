@@ -199,6 +199,66 @@ export const DashboardPage = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Profile Details Card */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage src={user.profilePicture || undefined} />
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      {getUserInitials(user.firstName, user.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="text-lg font-semibold">{user.firstName} {user.lastName}</h3>
+                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Student ID</Label>
+                    <p className="font-medium" data-testid="profile-student-id">
+                      {user.studentId || 'Not provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">School</Label>
+                    <p className="font-medium" data-testid="profile-school">
+                      {user.school || 'Not provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Phone</Label>
+                    <p className="font-medium" data-testid="profile-phone">
+                      {user.phone || 'Not provided'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Member Since</Label>
+                    <p className="font-medium" data-testid="profile-member-since">
+                      {formatDate(user.createdAt!)}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Link href="#" onClick={(e) => {e.preventDefault(); const tabsElement = document.querySelector('[data-testid="tab-profile"]') as HTMLElement; tabsElement?.click();}}>
+                    <Button variant="outline" size="sm" data-testid="edit-profile-button">
+                      <i className="fas fa-edit mr-2"></i>Edit Profile
+                    </Button>
+                  </Link>
+                  {user.role === 'admin' && (
+                    <Link href="/admin">
+                      <Button variant="outline" size="sm" data-testid="admin-panel-button">
+                        <i className="fas fa-cog mr-2"></i>Admin Panel
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid lg:grid-cols-3 gap-8">
               {/* Recent Submissions */}
               <div className="lg:col-span-2">

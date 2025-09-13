@@ -25,7 +25,7 @@ export const AuthPage = () => {
       studentId: null,
       phone: null,
       school: null,
-      role: 'student',
+      role: 'admin',
       profilePicture: null,
       referralCode: null,
       referralPoints: 0,
