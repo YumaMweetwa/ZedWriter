@@ -4,13 +4,13 @@ export const WORK_TYPES: Record<string, { label: string; price: number; features
     price: 500,
     features: [
       "Complete research proposal",
-      "Literature review included",
+      "Literature review included", 
       "Methodology section",
       "3-5 day delivery"
     ]
   },
   dissertation: {
-    label: "Full Dissertation",
+    label: "Full Dissertation", 
     price: 1000,
     features: [
       "Complete dissertation",
@@ -24,7 +24,7 @@ export const WORK_TYPES: Record<string, { label: string; price: number; features
     price: 300,
     features: [
       "Custom assignment writing",
-      "Research and analysis",
+      "Research and analysis", 
       "Proper formatting",
       "2-3 day delivery"
     ]
@@ -35,7 +35,7 @@ export const WORK_TYPES: Record<string, { label: string; price: number; features
     features: [
       "SPSS/R analysis",
       "Charts & graphs",
-      "Interpretation",
+      "Interpretation", 
       "2-3 day delivery"
     ]
   },
@@ -47,6 +47,56 @@ export const WORK_TYPES: Record<string, { label: string; price: number; features
       "Data collection",
       "Quality assurance",
       "Data cleaning"
+    ]
+  },
+  blog_post: {
+    label: "Blog Post",
+    price: 200,
+    features: [
+      "SEO optimized content",
+      "1000-2000 words",
+      "Research included",
+      "1-2 day delivery"
+    ]
+  },
+  content_writing: {
+    label: "Content Writing",
+    price: 250,
+    features: [
+      "Custom content creation",
+      "Professional tone",
+      "Research based",
+      "2-3 day delivery"
+    ]
+  },
+  essay: {
+    label: "Essay Writing",
+    price: 300,
+    features: [
+      "Academic essay writing",
+      "Proper citations",
+      "Original research",
+      "2-4 day delivery"
+    ]
+  },
+  thesis: {
+    label: "Thesis Writing",
+    price: 800,
+    features: [
+      "Complete thesis",
+      "Data analysis",
+      "Multiple revisions",
+      "7-10 day delivery"
+    ]
+  },
+  case_study: {
+    label: "Case Study",
+    price: 350,
+    features: [
+      "Detailed case analysis",
+      "Problem-solution format",
+      "Industry insights",
+      "3-4 day delivery"
     ]
   }
 };
@@ -92,8 +142,11 @@ export const PAYMENT_ARRANGEMENTS = [
 
 export const CONTACT_INFO = {
   email: "support@zedwriter.zm",
-  whatsapp: "+260977123456",
-  phone: "+260977123456"
+  whatsapp: "+260971215524",
+  phone: "+260971215524",
+  name: "Yuma Mweetwa",
+  airtelMoney: "+260971215524",
+  mtnMoney: "+260969499769"
 };
 
 export const REFERRAL_POINTS = {
