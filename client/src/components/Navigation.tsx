@@ -145,12 +145,6 @@ export const Navigation = () => {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile" data-testid="user-menu-profile">
-                      <i className="fas fa-user mr-2"></i>
-                      Manage Account
-                    </Link>
-                  </DropdownMenuItem>
                   {user.role === 'admin' && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin" data-testid="user-menu-admin">

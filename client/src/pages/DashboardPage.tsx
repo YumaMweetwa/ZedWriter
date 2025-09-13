@@ -190,11 +190,11 @@ export const DashboardPage = () => {
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
             <TabsTrigger value="submissions" data-testid="tab-submissions">Submissions</TabsTrigger>
             <TabsTrigger value="payments" data-testid="tab-payments">Payments</TabsTrigger>
             <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
             <TabsTrigger value="referrals" data-testid="tab-referrals">Referrals</TabsTrigger>
-            <TabsTrigger value="profile" data-testid="tab-profile">Profile</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
