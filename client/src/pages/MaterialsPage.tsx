@@ -116,7 +116,7 @@ export const MaterialsPage = () => {
                   <SelectValue placeholder="All Programs" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Programs</SelectItem>
+                  <SelectItem value="all">All Programs</SelectItem>
                   {PROGRAMS.map((program) => (
                     <SelectItem key={program.value} value={program.value}>
                       {program.label}
@@ -132,7 +132,7 @@ export const MaterialsPage = () => {
                   <SelectValue placeholder="All Years" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Years</SelectItem>
+                  <SelectItem value="all">All Years</SelectItem>
                   {MEDICINE_YEARS.map((year) => (
                     <SelectItem key={year.value} value={year.value}>
                       {year.label}
@@ -148,7 +148,7 @@ export const MaterialsPage = () => {
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   {MATERIAL_TYPES.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}

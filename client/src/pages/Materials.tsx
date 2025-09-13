@@ -91,7 +91,7 @@ export const Materials = () => {
                     <SelectValue placeholder="All Programs" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Programs</SelectItem>
+                    <SelectItem value="all">All Programs</SelectItem>
                     <SelectItem value="medicine">Medicine & Surgery</SelectItem>
                     <SelectItem value="engineering">Engineering</SelectItem>
                     <SelectItem value="business">Business</SelectItem>
@@ -105,7 +105,7 @@ export const Materials = () => {
                     <SelectValue placeholder="All Years" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Years</SelectItem>
+                    <SelectItem value="all">All Years</SelectItem>
                     <SelectItem value="111">111</SelectItem>
                     <SelectItem value="121">121</SelectItem>
                     <SelectItem value="211">211</SelectItem>
@@ -125,7 +125,7 @@ export const Materials = () => {
                     <SelectValue placeholder="All Types" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="study_notes">Study Notes</SelectItem>
                     <SelectItem value="past_papers_theory">Past Papers (Theory)</SelectItem>
                     <SelectItem value="past_papers_practical">Past Papers (Practical/OSCE)</SelectItem>
