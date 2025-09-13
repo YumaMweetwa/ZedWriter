@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut, User, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut, User, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -11,7 +11,7 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "improvedzedwriter.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "improvedzedwriter",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "improvedzedwriter.firebasestorage.app",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "improvedzedwriter.appspot.com",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1001779186944",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1001779186944:web:055ad830723a01bf1177e5",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-GG14E34Q6Q",
@@ -112,6 +112,51 @@ export const signInWithGoogle = async () => {
     return user;
   } catch (error) {
     console.error('Error signing in with Google:', error);
+    throw error;
+  }
+};
+
+// Email/Password Sign In
+export const signInWithEmail = async (email: string, password: string) => {
+  if (!auth) {
+    throw new Error('Firebase auth not initialized');
+  }
+  
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const user = result.user;
+    
+    // Create user document in Firestore if it doesn't exist
+    await createUserDocument(user);
+    
+    return user;
+  } catch (error) {
+    console.error('Error signing in with email:', error);
+    throw error;
+  }
+};
+
+// Email/Password Sign Up
+export const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
+  if (!auth) {
+    throw new Error('Firebase auth not initialized');
+  }
+  
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    const user = result.user;
+    
+    // Update display name if provided
+    if (displayName) {
+      await updateProfile(user, { displayName });
+    }
+    
+    // Create user document in Firestore
+    await createUserDocument(user);
+    
+    return user;
+  } catch (error) {
+    console.error('Error signing up with email:', error);
     throw error;
   }
 };

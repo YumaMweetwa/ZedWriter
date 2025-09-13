@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { EmailPasswordSignIn } from '@/components/EmailPasswordSignIn';
 import { FirebaseFileUpload } from '@/components/FirebaseFileUpload';
 import { useAuth } from '@/contexts/AuthContext';
 import { logOut } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 export const FirebaseDemo = () => {
@@ -48,7 +50,7 @@ export const FirebaseDemo = () => {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           {/* Authentication Card */}
           <Card>
             <CardHeader>
@@ -59,11 +61,26 @@ export const FirebaseDemo = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {!firebaseUser ? (
-                <div>
+                <div className="space-y-4">
                   <p className="text-sm text-muted-foreground mb-4">
-                    Sign in with your Google account to access Firebase features.
+                    Sign in with Google or use email/password to access Firebase features.
                   </p>
-                  <GoogleSignInButton />
+                  
+                  {/* Google Sign In */}
+                  <div>
+                    <GoogleSignInButton />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <span className="text-xs text-muted-foreground">OR</span>
+                    <Separator className="flex-1" />
+                  </div>
+                  
+                  {/* Email/Password Sign In */}
+                  <div>
+                    <EmailPasswordSignIn />
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -74,7 +91,7 @@ export const FirebaseDemo = () => {
                       className="w-10 h-10 rounded-full"
                     />
                     <div>
-                      <p className="font-medium">{firebaseUser.displayName}</p>
+                      <p className="font-medium">{firebaseUser.displayName || 'User'}</p>
                       <p className="text-sm text-muted-foreground">{firebaseUser.email}</p>
                     </div>
                   </div>
