@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zedwriter - Student Research Assistance Platform for Zambia</title>
+    <meta name="description" content="Zambia's premier student research assistance platform. Get professional help with proposals, dissertations, data analysis, and assignments from experienced academic writers.">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+        import { getFunctions } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
+        
+        window.firebaseApp = initializeApp({
+            apiKey: window.ENV?.FIREBASE_API_KEY || "demo-key",
+            authDomain: `${window.ENV?.FIREBASE_PROJECT_ID || "demo-project"}.firebaseapp.com`,
+            projectId: window.ENV?.FIREBASE_PROJECT_ID || "demo-project",
+            storageBucket: `${window.ENV?.FIREBASE_PROJECT_ID || "demo-project"}.firebasestorage.app`,
+            appId: window.ENV?.FIREBASE_APP_ID || "demo-app-id"
+        });
+        
+        window.auth = getAuth(window.firebaseApp);
+        window.db = getFirestore(window.firebaseApp);
+        window.storage = getStorage(window.firebaseApp);
+        window.functions = getFunctions(window.firebaseApp);
+        
+        // Initialize app after Firebase is ready
+        import('./js/app.js');
+    </script>
+</head>
+<body class="min-h-screen bg-background text-foreground">
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-card border border-border rounded-xl p-8 text-center">
+            <div class="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+            <h4 class="font-semibold mb-2" id="loading-title">Loading...</h4>
+            <p class="text-sm text-muted-foreground" id="loading-message">Please wait while we load the application.</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="main-nav" class="sticky top-0 z-40 bg-card/80 backdrop-blur-sm border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-primary text-primary-foreground w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg">
+                        Z
+                    </div>
+                    <span class="text-xl font-bold text-foreground">Zedwriter</span>
+                </div>
+                
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#home" class="nav-link text-foreground hover:text-primary transition-colors font-medium" data-page="home">Home</a>
+                    <a href="#pricing" class="nav-link text-muted-foreground hover:text-primary transition-colors" data-page="pricing">Pricing</a>
+                    <a href="#materials" class="nav-link text-muted-foreground hover:text-primary transition-colors" data-page="materials">Materials</a>
+                    <a href="#submit" class="nav-link text-muted-foreground hover:text-primary transition-colors" data-page="submit">Submit Work</a>
+                </div>
+                
+                <!-- Auth Section -->
+                <div class="flex items-center space-x-4">
+                    <!-- Mobile Menu Button -->
+                    <button id="mobile-menu-btn" class="md:hidden text-muted-foreground hover:text-primary">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    
+                    <!-- Unauthenticated State -->
+                    <div id="auth-signed-out" class="flex items-center space-x-4">
+                        <button id="sign-in-btn" class="text-primary hover:text-primary/80 transition-colors">Sign In</button>
+                        <button id="sign-up-btn" class="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                            Get Started
+                        </button>
+                    </div>
+                    
+                    <!-- Authenticated State -->
+                    <div id="auth-signed-in" class="hidden relative">
+                        <button id="user-menu-btn" class="flex items-center space-x-2 bg-muted rounded-full p-1 pr-3 hover:bg-muted/80 transition-colors">
+                            <div id="user-avatar" class="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
+                                U
+                            </div>
+                            <span id="user-greeting" class="hidden sm:block text-sm font-medium">Hi, User</span>
+                            <i class="fas fa-chevron-down text-xs text-muted-foreground"></i>
+                        </button>
+                        <!-- User Dropdown -->
+                        <div id="user-dropdown" class="absolute right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg py-1 hidden">
+                            <a href="#dashboard" class="block px-4 py-2 text-sm text-foreground hover:bg-muted" data-page="dashboard">Dashboard</a>
+                            <a href="#profile" class="block px-4 py-2 text-sm text-foreground hover:bg-muted" data-page="profile">Manage Account</a>
+                            <hr class="my-1 border-border">
+                            <button id="sign-out-btn" class="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted">Sign Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="md:hidden hidden border-t border-border bg-card">
+            <div class="px-2 pt-2 pb-3 space-y-1">
+                <a href="#home" class="block px-3 py-2 text-base font-medium text-foreground hover:text-primary" data-page="home">Home</a>
+                <a href="#pricing" class="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-primary" data-page="pricing">Pricing</a>
+                <a href="#materials" class="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-primary" data-page="materials">Materials</a>
+                <a href="#submit" class="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-primary" data-page="submit">Submit Work</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="app-content" class="min-h-screen">
+        
+        <!-- Home Page -->
+        <div id="page-home" class="page-content">
+            <!-- Hero Section -->
+            <section class="bg-gradient-to-br from-primary/5 to-accent/5 py-20">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center max-w-4xl mx-auto">
+                        <h1 class="text-4xl md:text-6xl font-bold mb-6">
+                            Academic Excellence Made Simple
+                        </h1>
+                        <p class="text-xl md:text-2xl mb-8 text-muted-foreground">
+                            Professional research assistance for Zambian students. From proposals to dissertations, we've got you covered.
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                            <button id="hero-get-started" class="bg-primary text-primary-foreground px-8 py-4 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+                                Get Started Today
+                            </button>
+                            <button id="hero-view-pricing" class="border-2 border-primary text-primary px-8 py-4 rounded-lg font-semibold hover:bg-primary hover:text-primary-foreground transition-colors">
+                                View Pricing
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- How It Works -->
+            <section class="py-20 bg-background">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-16">
+                        <h2 class="text-3xl md:text-4xl font-bold mb-4">How Zedwriter Works</h2>
+                        <p class="text-xl text-muted-foreground max-w-2xl mx-auto">
+                            Three simple steps to academic success
+                        </p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="text-center">
+                            <div class="bg-primary text-primary-foreground w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
+                                1
+                            </div>
+                            <h3 class="text-xl font-semibold mb-4">Submit Your Work</h3>
+                            <p class="text-muted-foreground">
+                                Upload your requirements, files, and specifications through our secure platform.
+                            </p>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div class="bg-secondary text-secondary-foreground w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
+                                2
+                            </div>
+                            <h3 class="text-xl font-semibold mb-4">Expert Review</h3>
+                            <p class="text-muted-foreground">
+                                Our qualified team reviews your submission and provides professional assistance.
+                            </p>
+                        </div>
+                        
+                        <div class="text-center">
+                            <div class="bg-accent text-accent-foreground w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
+                                3
+                            </div>
+                            <h3 class="text-xl font-semibold mb-4">Receive Results</h3>
+                            <p class="text-muted-foreground">
+                                Get your completed work with quality assurance and ongoing support.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trust Badges -->
+            <section class="py-16 bg-muted">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-12">
+                        <h2 class="text-2xl font-bold mb-4">Trusted by Students Across Zambia</h2>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 items-center">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-primary">500+</div>
+                            <div class="text-muted-foreground">Students Helped</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-primary">98%</div>
+                            <div class="text-muted-foreground">Success Rate</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-primary">24/7</div>
+                            <div class="text-muted-foreground">Support</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-primary">5★</div>
+                            <div class="text-muted-foreground">Average Rating</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Section -->
+            <section class="py-20 bg-background">
+                <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                    <h2 class="text-3xl font-bold mb-8">Get in Touch</h2>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="flex flex-col items-center">
+                            <div class="bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <h3 class="font-semibold mb-2">Email</h3>
+                            <a href="mailto:support@zedwriter.zm" class="text-muted-foreground hover:text-primary">support@zedwriter.zm</a>
+                        </div>
+                        
+                        <div class="flex flex-col items-center">
+                            <div class="bg-secondary text-secondary-foreground w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                                <i class="fab fa-whatsapp"></i>
+                            </div>
+                            <h3 class="font-semibold mb-2">WhatsApp</h3>
+                            <a href="https://wa.me/260977123456" class="text-muted-foreground hover:text-primary">+260 97 123 4567</a>
+                        </div>
+                        
+                        <div class="flex flex-col items-center">
+                            <div class="bg-accent text-accent-foreground w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <h3 class="font-semibold mb-2">Phone</h3>
+                            <a href="tel:+260977123456" class="text-muted-foreground hover:text-primary">+260 97 123 4567</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Pricing Page -->
+        <div id="page-pricing" class="page-content hidden">
+            <section class="py-20 bg-background">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-16">
+                        <h1 class="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
+                        <p class="text-xl text-muted-foreground max-w-2xl mx-auto">
+                            Quality academic assistance at affordable rates for Zambian students
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                        <!-- Proposal Card -->
+                        <div class="bg-card border border-border rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="text-center">
+                                <h3 class="text-2xl font-bold mb-2">Research Proposal</h3>
+                                <div class="text-4xl font-bold text-primary mb-4">K500</div>
+                                <p class="text-muted-foreground mb-6">Complete proposal writing and formatting</p>
+                            </div>
+                            <ul class="space-y-3 mb-8">
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Topic development</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Literature review</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Methodology design</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Professional formatting</span>
+                                </li>
+                            </ul>
+                            <button class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors pricing-cta" data-type="proposal">
+                                Get Started
+                            </button>
+                        </div>
+
+                        <!-- Dissertation Card -->
+                        <div class="bg-card border-2 border-primary rounded-xl p-8 shadow-lg relative">
+                            <div class="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                                <span class="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium">
+                                    Most Popular
+                                </span>
+                            </div>
+                            <div class="text-center">
+                                <h3 class="text-2xl font-bold mb-2">Dissertation</h3>
+                                <div class="flex items-center justify-center space-x-2 mb-4">
+                                    <span class="text-2xl text-muted-foreground line-through">K1200</span>
+                                    <div class="text-4xl font-bold text-primary">K1000</div>
+                                </div>
+                                <p class="text-muted-foreground mb-2">Complete dissertation assistance</p>
+                                <p class="text-sm text-destructive font-medium">Promo until Jan 1</p>
+                            </div>
+                            <ul class="space-y-3 mb-8 mt-6">
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Full research assistance</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Data analysis support</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Multiple revisions</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Defense preparation</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Priority support</span>
+                                </li>
+                            </ul>
+                            <button class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors pricing-cta" data-type="dissertation">
+                                Get Started
+                            </button>
+                        </div>
+
+                        <!-- Data Services Card -->
+                        <div class="bg-card border border-border rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow">
+                            <div class="text-center">
+                                <h3 class="text-2xl font-bold mb-2">Data Services</h3>
+                                <div class="text-4xl font-bold text-primary mb-4">K400</div>
+                                <p class="text-muted-foreground mb-6">Analysis or collection services</p>
+                            </div>
+                            <ul class="space-y-3 mb-8">
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Data collection</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Statistical analysis</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>SPSS/R assistance</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fas fa-check text-primary mr-3"></i>
+                                    <span>Results interpretation</span>
+                                </li>
+                            </ul>
+                            <button class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors pricing-cta" data-type="data_analysis">
+                                Get Started
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Free Services -->
+                    <div class="mt-16 max-w-4xl mx-auto">
+                        <h2 class="text-2xl font-bold text-center mb-8">Free Services</h2>
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div class="bg-muted rounded-xl p-6 text-center">
+                                <div class="bg-secondary text-secondary-foreground w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fas fa-lightbulb"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold mb-3">Free Topic Generation</h3>
+                                <p class="text-muted-foreground">Get research topic suggestions based on your field of study</p>
+                            </div>
+                            
+                            <div class="bg-muted rounded-xl p-6 text-center">
+                                <div class="bg-accent text-accent-foreground w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fas fa-comments"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold mb-3">Free Consultation</h3>
+                                <p class="text-muted-foreground">30-minute consultation to discuss your academic needs</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Submit Work Page -->
+        <div id="page-submit" class="page-content hidden">
+            <!-- This will be populated by submissions.js -->
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page-content hidden">
+            <!-- This will be populated by dashboard.js -->
+        </div>
+
+        <!-- Materials Page -->
+        <div id="page-materials" class="page-content hidden">
+            <!-- This will be populated by materials.js -->
+        </div>
+
+        <!-- Admin Page -->
+        <div id="page-admin" class="page-content hidden">
+            <!-- This will be populated by admin.js -->
+        </div>
+
+        <!-- Topic Generator Page -->
+        <div id="page-topic-generator" class="page-content hidden">
+            <!-- This will be populated by topic-generator.js -->
+        </div>
+
+        <!-- Chat Page -->
+        <div id="page-chat" class="page-content hidden">
+            <!-- This will be populated by chat.js -->
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Auth Modals -->
+    <div id="auth-modal" class="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-card border border-border rounded-xl p-8 max-w-md w-full mx-4">
+            <div id="sign-in-form" class="space-y-6">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold mb-2">Sign In</h2>
+                    <p class="text-muted-foreground">Welcome back to Zedwriter</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="sign-in-email" class="w-full p-3 border border-border rounded-lg" placeholder="your.email@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="sign-in-password" class="w-full p-3 border border-border rounded-lg" placeholder="••••••••">
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <button id="email-sign-in-btn" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+                        Sign In
+                    </button>
+                    <button id="google-sign-in-btn" class="w-full border border-border text-foreground py-3 rounded-lg font-semibold hover:bg-muted transition-colors">
+                        <i class="fab fa-google mr-2"></i>
+                        Continue with Google
+                    </button>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-sm text-muted-foreground">
+                        Don't have an account? 
+                        <button id="show-sign-up" class="text-primary hover:text-primary/80">Sign up</button>
+                    </p>
+                </div>
+            </div>
+            
+            <div id="sign-up-form" class="space-y-6 hidden">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold mb-2">Create Account</h2>
+                    <p class="text-muted-foreground">Join Zedwriter today</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">First Name</label>
+                            <input type="text" id="sign-up-first-name" class="w-full p-3 border border-border rounded-lg" placeholder="John">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Last Name</label>
+                            <input type="text" id="sign-up-last-name" class="w-full p-3 border border-border rounded-lg" placeholder="Doe">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="sign-up-email" class="w-full p-3 border border-border rounded-lg" placeholder="your.email@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="sign-up-password" class="w-full p-3 border border-border rounded-lg" placeholder="••••••••">
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <button id="email-sign-up-btn" class="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+                        Create Account
+                    </button>
+                    <button id="google-sign-up-btn" class="w-full border border-border text-foreground py-3 rounded-lg font-semibold hover:bg-muted transition-colors">
+                        <i class="fab fa-google mr-2"></i>
+                        Continue with Google
+                    </button>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-sm text-muted-foreground">
+                        Already have an account? 
+                        <button id="show-sign-in" class="text-primary hover:text-primary/80">Sign in</button>
+                    </p>
+                </div>
+            </div>
+            
+            <button id="close-auth-modal" class="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Environment Variables Script -->
+    <script>
+        window.ENV = {
+            FIREBASE_API_KEY: window.location.hostname === 'localhost' ? 'demo-key' : 'AIzaSyB...',
+            FIREBASE_PROJECT_ID: window.location.hostname === 'localhost' ? 'demo-project' : 'zedwriter-platform',
+            FIREBASE_APP_ID: window.location.hostname === 'localhost' ? 'demo-app' : '1:123456789:web:abc123def456'
+        };
+    </script>
+</body>
+</html>
