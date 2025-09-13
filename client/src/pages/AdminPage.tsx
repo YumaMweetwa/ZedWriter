@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFirestoreCollection } from '@/hooks/use-firestore';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
+import { orderBy } from 'firebase/firestore';
 import { Submission, User } from '@shared/schema';
 
 export const AdminPage = () => {
@@ -188,8 +189,8 @@ export const AdminPage = () => {
                               </div>
                             </div>
                           </div>
-                          <Badge className={getStatusColor(submission.status)}>
-                            {submission.status.replace('_', ' ')}
+                          <Badge className={getStatusColor(submission.status ?? 'pending')}>
+                            {(submission.status ?? 'pending').replace('_', ' ')}
                           </Badge>
                         </div>
                       ))}
@@ -270,10 +271,16 @@ export const AdminPage = () => {
                           <td className="p-4">
                             <div>
                               <div className="font-medium">
-                                {submission.requirements?.firstName} {submission.requirements?.lastName}
+                                {(() => {
+                                  const user = users.find(u => u.id === submission.userId);
+                                  return user ? `${user.firstName} ${user.lastName}` : 'N/A';
+                                })()}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {submission.requirements?.email}
+                                {(() => {
+                                  const user = users.find(u => u.id === submission.userId);
+                                  return user?.email || 'N/A';
+                                })()}
                               </div>
                             </div>
                           </td>
@@ -282,8 +289,8 @@ export const AdminPage = () => {
                           </td>
                           <td className="p-4 max-w-xs truncate">{submission.title}</td>
                           <td className="p-4">
-                            <Badge className={getStatusColor(submission.status)}>
-                              {submission.status.replace('_', ' ')}
+                            <Badge className={getStatusColor(submission.status ?? 'pending')}>
+                              {(submission.status ?? 'pending').replace('_', ' ')}
                             </Badge>
                           </td>
                           <td className="p-4 font-medium">{formatCurrency(submission.amount)}</td>
