@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, logout, resetPassword } from '@/lib/auth';
@@ -7,6 +8,7 @@ import { InsertUser } from '@shared/schema';
 export const useAuthActions = () => {
   const { refreshUser } = useAuth();
   const { showToast, setLoading } = useApp();
+  const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
@@ -108,6 +110,9 @@ export const useAuthActions = () => {
     try {
       setIsLoading(true);
       await logout();
+      
+      // Redirect to homepage after successful logout
+      setLocation('/');
       
       showToast({
         type: 'success',

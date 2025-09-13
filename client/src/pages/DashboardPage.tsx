@@ -23,6 +23,7 @@ import { Submission, User } from '@shared/schema';
 import { createInsertSchema } from 'drizzle-zod';
 import { users } from '@shared/schema';
 import { z } from 'zod';
+import { CONTACT_INFO } from '@/utils/constants';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
@@ -589,13 +590,24 @@ export const DashboardPage = () => {
                 <CardTitle>Chat with Admin</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <i className="fas fa-comments text-6xl mb-4 text-muted-foreground/50"></i>
-                  <h3 className="text-lg font-semibold mb-2">Chat Coming Soon</h3>
-                  <p className="mb-4">Direct messaging with admin support will be available soon</p>
-                  <Button variant="outline" disabled data-testid="start-chat-button">
-                    <i className="fas fa-comment mr-2"></i>Start Chat
-                  </Button>
+                <div className="text-center py-12">
+                  <i className="fab fa-whatsapp text-6xl mb-4 text-green-500"></i>
+                  <h3 className="text-lg font-semibold mb-2">Connect with Admin</h3>
+                  <p className="mb-4 text-muted-foreground">Get instant support through WhatsApp</p>
+                  <a 
+                    href={`https://wa.me/${CONTACT_INFO.whatsapp.replace(/[^\d]/g, '')}?text=Hello%20zedwriter%20`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block"
+                  >
+                    <Button className="bg-green-500 hover:bg-green-600 text-white" data-testid="whatsapp-chat-button">
+                      <i className="fab fa-whatsapp mr-2"></i>
+                      Chat on WhatsApp
+                    </Button>
+                  </a>
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Click to start a conversation with "Hello zedwriter" and add your message
+                  </p>
                 </div>
               </CardContent>
             </Card>
