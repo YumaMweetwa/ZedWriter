@@ -10,7 +10,7 @@ import {
   serverTimestamp 
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { Message, ChatRoom, InsertMessage, InsertChatRoom } from "@shared/schema";
+import { Message, ChatRoom, InsertMessage, InsertChatRoom } from "@shared/types";
 
 export class ChatService {
   static async createChatRoom(roomData: InsertChatRoom): Promise<string> {

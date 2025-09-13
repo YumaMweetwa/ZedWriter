@@ -5,14 +5,54 @@ import { storage } from "./storage";
 import { authenticateToken, optionalAuth } from "./middleware/auth";
 import { upload, validateFileUpload } from "./middleware/upload";
 import { 
-  insertSubmissionSchema, 
-  insertPaymentSchema,
-  insertPricingServiceSchema,
   type PricingService,
   type InsertPricingService 
-} from "@shared/schema";
+} from "@shared/types";
 import "./firebase-admin"; // Initialize Firebase Admin
 import { GoogleGenAI } from "@google/genai";
+import { z } from "zod";
+
+// Simple validation schemas
+const submissionSchema = z.object({
+  userId: z.string(),
+  type: z.string(),
+  status: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  requirements: z.any().optional(),
+  fileFormat: z.string().optional(),
+  preferredDate: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  paymentArrangement: z.string().optional(),
+  amount: z.number(),
+  paidAmount: z.number().optional(),
+  files: z.any().optional(),
+  comments: z.string().optional(),
+  adminNotes: z.string().optional(),
+});
+
+const paymentSchema = z.object({
+  userId: z.string(),
+  submissionId: z.string().optional(),
+  amount: z.number().positive(),
+  method: z.string(),
+  transactionId: z.string().optional(),
+  reference: z.string().optional(),
+  description: z.string().optional(),
+  status: z.string().optional(),
+  metadata: z.any().optional(),
+});
+
+const pricingServiceSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  price: z.number().positive(),
+  features: z.any(),
+  isActive: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+  category: z.string().optional(),
+  orderIndex: z.number().optional(),
+});
 
 // Initialize Gemini AI with API key from environment
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
@@ -95,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/submissions', authenticateToken, async (req, res) => {
     try {
       // Validate the request body using Zod schema
-      const validationResult = insertSubmissionSchema.safeParse({
+      const validationResult = submissionSchema.safeParse({
         ...req.body,
         userId: req.user!.userId, // Use authenticated user's ID
         createdAt: undefined,
@@ -338,9 +378,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { title, description, program, year, type } = req.body;
       
+      // Auto-generate title from filename if not provided
+      const materialTitle = title || req.file.originalname.substring(0, req.file.originalname.lastIndexOf('.')) || req.file.originalname;
+      
       // Validate required fields
-      if (!title || !program || !year || !type) {
-        return res.status(400).json({ error: 'Missing required fields: title, program, year, and type are required' });
+      if (!program || !year || !type) {
+        return res.status(400).json({ error: 'Missing required fields: program, year, and type are required' });
       }
 
       // Upload file to Firebase Storage if available
@@ -375,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create material with approval pending
       const material = await storage.createMaterial({
-        title,
+        title: materialTitle,
         description: description || '',
         program,
         year,
@@ -743,10 +786,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/payments/confirm', authenticateToken, async (req, res) => {
     try {
       // Validate the request body using Zod schema
-      const paymentValidation = insertPaymentSchema.extend({
-        submissionId: insertPaymentSchema.shape.submissionId.refine(val => val !== null, 'submissionId is required'),
-        transactionId: insertPaymentSchema.shape.transactionId.refine(val => val !== null, 'transactionId is required'),
-        amount: insertPaymentSchema.shape.amount.min(1, 'amount must be positive')
+      const paymentValidation = paymentSchema.extend({
+        submissionId: z.string().refine((val: string) => val !== null, 'submissionId is required'),
+        transactionId: z.string().refine((val: string) => val !== null, 'transactionId is required'),
+        amount: z.number().min(1, 'amount must be positive')
       }).safeParse({
         ...req.body,
         userId: req.user!.userId,
@@ -925,7 +968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Access denied: Admin role required' });
       }
 
-      const validatedData = insertPricingServiceSchema.parse(req.body);
+      const validatedData = pricingServiceSchema.parse(req.body);
       const pricingService = await storage.createPricingService(validatedData);
       res.status(201).json(pricingService);
     } catch (error) {

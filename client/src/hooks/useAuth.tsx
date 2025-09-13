@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, logout, resetPassword } from '@/lib/auth';
-import { InsertUser } from '@shared/schema';
+import { InsertUser } from '@shared/types';
 
 export const useAuthActions = () => {
   const { refreshUser } = useAuth();

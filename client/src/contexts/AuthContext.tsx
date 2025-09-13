@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChange } from '@/lib/firebase';
-import { User } from '@shared/schema';
+import { User } from '@shared/types';
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;

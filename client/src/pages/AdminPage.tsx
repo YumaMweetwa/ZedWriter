@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
-import { Submission, User, Announcement, Material, PricingService } from '@shared/schema';
+import { Submission, User, Announcement, Material, PricingService } from '@shared/types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -300,7 +300,6 @@ const MaterialsManagement = () => {
 
   // Material upload form schema
   const uploadSchema = z.object({
-    title: z.string().min(1, 'Title is required'),
     description: z.string().optional(),
     program: z.string().min(1, 'Program is required'),
     year: z.string().min(1, 'Year is required'),
@@ -311,7 +310,6 @@ const MaterialsManagement = () => {
   const uploadForm = useForm<z.infer<typeof uploadSchema>>({
     resolver: zodResolver(uploadSchema),
     defaultValues: {
-      title: '',
       description: '',
       program: '',
       year: '',
@@ -376,12 +374,18 @@ const MaterialsManagement = () => {
   const onUploadSubmit = async (data: z.infer<typeof uploadSchema>) => {
     setUploadingFile(true);
     const formData = new FormData();
-    formData.append('title', data.title);
+    
+    // Use the filename without extension as the title
+    const file = data.file[0];
+    const fileName = file.name;
+    const title = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+    
+    formData.append('title', title);
     formData.append('description', data.description || '');
     formData.append('program', data.program);
     formData.append('year', data.year);
     formData.append('type', data.type);
-    formData.append('file', data.file[0]);
+    formData.append('file', file);
     
     uploadMaterialMutation.mutate(formData);
   };
@@ -416,19 +420,6 @@ const MaterialsManagement = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={uploadForm.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Title</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Material title" data-testid="input-material-title" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={uploadForm.control}
                     name="program"
                     render={({ field }) => (
                       <FormItem>
@@ -440,8 +431,6 @@ const MaterialsManagement = () => {
                       </FormItem>
                     )}
                   />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={uploadForm.control}
                     name="year"
@@ -455,6 +444,8 @@ const MaterialsManagement = () => {
                       </FormItem>
                     )}
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={uploadForm.control}
                     name="type"

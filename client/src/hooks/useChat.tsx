@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChatService } from '@/lib/chat';
-import { Message, ChatRoom } from '@shared/schema';
+import { Message, ChatRoom } from '@shared/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { uploadFile } from '@/lib/storage';

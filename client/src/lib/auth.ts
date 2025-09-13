@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail
 } from "firebase/auth";
 import { auth } from "./firebase";
-import { User, InsertUser } from "@shared/schema";
+import { User, InsertUser } from "@shared/types";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -54,7 +54,7 @@ export const signInWithGoogle = async () => {
       email: user.email!,
       firstName: user.displayName?.split(" ")[0] || "",
       lastName: user.displayName?.split(" ").slice(1).join(" ") || "",
-      profilePicture: user.photoURL,
+      profilePicture: user.photoURL || undefined,
       referralCode: generateReferralCode(),
       role: "student",
     };

@@ -17,24 +17,8 @@ import {
   type InsertPayment,
   type PricingService,
   type InsertPricingService
-} from "@shared/schema";
+} from "@shared/types";
 import admin from "./firebase-admin";
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  startAfter,
-  Timestamp,
-  FieldValue
-} from "firebase-admin/firestore";
 
 // Enhanced storage interface with all required methods
 export interface IStorage {
@@ -115,7 +99,7 @@ export class FirestoreStorage implements IStorage {
   }
 
   private addTimestamps(data: any): any {
-    const now = Timestamp.now();
+    const now = admin.firestore.Timestamp.now();
     return {
       ...data,
       createdAt: now,
@@ -126,7 +110,7 @@ export class FirestoreStorage implements IStorage {
   private updateTimestamp(data: any): any {
     return {
       ...data,
-      updatedAt: Timestamp.now()
+      updatedAt: admin.firestore.Timestamp.now()
     };
   }
 
