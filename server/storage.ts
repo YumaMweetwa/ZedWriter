@@ -295,7 +295,7 @@ export class FirestoreStorage implements IStorage {
     try {
       const materialDoc = await this.db.collection('materials').doc(id).get();
       if (!materialDoc.exists) return undefined;
-      return { id: materialDoc.id, ...materialDoc.data() } as Material;
+      return this.convertFirestoreDoc<Material>(materialDoc);
     } catch (error) {
       console.error('Error getting material:', error);
       return undefined;
@@ -324,7 +324,7 @@ export class FirestoreStorage implements IStorage {
 
       materialsQuery = materialsQuery.orderBy('createdAt', 'desc');
       const materialsSnapshot = await materialsQuery.get();
-      let materials = materialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material));
+      let materials = this.convertFirestoreDocs<Material>(materialsSnapshot.docs);
 
       // Apply search filter in memory (Firestore doesn't support LIKE queries)
       if (filters.search) {
@@ -346,7 +346,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const materialWithTimestamps = this.addTimestamps(insertMaterial);
       const materialRef = await this.db.collection('materials').add(materialWithTimestamps);
-      return { id: materialRef.id, ...materialWithTimestamps } as Material;
+      const newDoc = await materialRef.get();
+      return this.convertFirestoreDoc<Material>(newDoc);
     } catch (error) {
       console.error('Error creating material:', error);
       throw error;
@@ -358,7 +359,7 @@ export class FirestoreStorage implements IStorage {
       const updatesWithTimestamp = this.updateTimestamp(updates);
       await this.db.collection('materials').doc(id).update(updatesWithTimestamp);
       const updatedDoc = await this.db.collection('materials').doc(id).get();
-      return { id: updatedDoc.id, ...updatedDoc.data() } as Material;
+      return this.convertFirestoreDoc<Material>(updatedDoc);
     } catch (error) {
       console.error('Error updating material:', error);
       throw error;
@@ -430,7 +431,7 @@ export class FirestoreStorage implements IStorage {
         .where('isActive', '==', true)
         .orderBy('createdAt', 'desc')
         .get();
-      return announcementsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
+      return this.convertFirestoreDocs<Announcement>(announcementsQuery.docs);
     } catch (error) {
       console.error('Error getting announcements:', error);
       return [];
@@ -441,7 +442,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const announcementWithTimestamps = this.addTimestamps(insertAnnouncement);
       const announcementRef = await this.db.collection('announcements').add(announcementWithTimestamps);
-      return { id: announcementRef.id, ...announcementWithTimestamps } as Announcement;
+      const newDoc = await announcementRef.get();
+      return this.convertFirestoreDoc<Announcement>(newDoc);
     } catch (error) {
       console.error('Error creating announcement:', error);
       throw error;

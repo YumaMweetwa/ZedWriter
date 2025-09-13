@@ -2,7 +2,7 @@
 
 ## Overview
 
-Zedwriter is a comprehensive web application designed to provide academic research assistance services to students in Zambia. The platform offers professional help with research proposals, dissertations, data analysis, assignments, and related academic writing services. The system features a full-stack architecture with React frontend, Express.js backend, PostgreSQL database via Drizzle ORM, and dual authentication systems supporting both Firebase and traditional session-based authentication.
+Zedwriter is a comprehensive web application designed to provide academic research assistance services to students in Zambia. The platform offers professional help with research proposals, dissertations, data analysis, assignments, and related academic writing services. The system features a full-stack architecture with React frontend, Express.js backend, and now exclusively Firebase Firestore for all data storage, featuring three-step submission wizard, student dashboard, comprehensive admin panel, materials library, referral system, WhatsApp chat functionality, and direct payment system.
 
 ## User Preferences
 
@@ -21,20 +21,22 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture  
 - **Server**: Express.js with TypeScript for API endpoints and middleware
-- **Authentication**: Dual system supporting Firebase Admin SDK and session-based auth
-- **Database ORM**: Drizzle ORM with PostgreSQL for type-safe database operations
+- **Authentication**: Firebase Admin SDK for unified authentication
+- **Database**: Firebase Firestore for scalable NoSQL document storage
 - **File Storage**: Firebase Cloud Storage with fallback to local filesystem
 - **Real-time Communication**: WebSocket server for live chat functionality
 - **API Design**: RESTful endpoints with structured error handling and logging middleware
 
 ### Database Schema Design
-The system uses a PostgreSQL database with the following core entities:
-- **Users**: Stores user profiles, roles, referral data, and payment tracking
-- **Submissions**: Manages work requests with status tracking and file metadata
-- **Materials**: Academic resources categorized by program, year, and type
-- **Chat System**: Rooms and messages for real-time communication
-- **Payments**: Transaction records with provider references and webhook support
-- **Referrals**: Points-based system for user acquisition tracking
+The system uses Firebase Firestore with the following core collections:
+- **users**: User profiles, roles, referral data, and payment tracking
+- **submissions**: Work requests with status tracking and file metadata
+- **materials**: Academic resources categorized by program, year, and type
+- **chatRooms & messages**: Real-time communication system
+- **payments**: Transaction records with provider references and webhook support
+- **referrals**: Points-based system for user acquisition tracking
+- **announcements**: System announcements and notifications
+- **pricingServices**: Dynamic pricing configuration
 
 ### Authentication System
 The platform implements a hybrid authentication approach:
