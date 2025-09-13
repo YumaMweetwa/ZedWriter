@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { auth } from "@/lib/firebase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -7,14 +8,35 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  
+  if (auth?.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      headers["Authorization"] = `Bearer ${token}`;
+    } catch (error) {
+      console.error("Failed to get auth token:", error);
+    }
+  }
+  
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const authHeaders = await getAuthHeaders();
+  const headers = {
+    ...authHeaders,
+    ...(data ? { "Content-Type": "application/json" } : {}),
+  };
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -23,13 +45,35 @@ export async function apiRequest(
   return res;
 }
 
+export async function uploadFiles(files: File[]): Promise<any> {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+
+  const authHeaders = await getAuthHeaders();
+  
+  const res = await fetch('/api/uploads', {
+    method: 'POST',
+    headers: authHeaders,
+    body: formData,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res.json();
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const authHeaders = await getAuthHeaders();
+    
     const res = await fetch(queryKey.join("/") as string, {
+      headers: authHeaders,
       credentials: "include",
     });
 

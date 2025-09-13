@@ -2,6 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
+import { authenticateToken, optionalAuth } from "./middleware/auth";
+import { upload, validateFileUpload } from "./middleware/upload";
+import { insertSubmissionSchema } from "@shared/schema";
+import "./firebase-admin"; // Initialize Firebase Admin
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -67,10 +71,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API Routes
 
   // Submissions routes
-  app.get('/api/submissions', async (req, res) => {
+  app.get('/api/submissions', authenticateToken, async (req, res) => {
     try {
-      const { userId } = req.query;
-      const submissions = await storage.getSubmissionsByUser(userId as string);
+      // Use authenticated user's ID instead of query parameter
+      const submissions = await storage.getSubmissionsByUser(req.user!.userId);
       res.json(submissions);
     } catch (error) {
       console.error('Error fetching submissions:', error);
@@ -78,9 +82,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/submissions', async (req, res) => {
+  app.post('/api/submissions', authenticateToken, async (req, res) => {
     try {
-      const submission = await storage.createSubmission(req.body);
+      // Validate the request body using Zod schema
+      const validationResult = insertSubmissionSchema.safeParse({
+        ...req.body,
+        userId: req.user!.userId, // Use authenticated user's ID
+        createdAt: undefined,
+        updatedAt: undefined,
+      });
+
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid submission data',
+          details: validationResult.error.errors 
+        });
+      }
+
+      const submissionData = validationResult.data;
+      const submission = await storage.createSubmission(submissionData);
       res.status(201).json(submission);
     } catch (error) {
       console.error('Error creating submission:', error);
@@ -227,6 +247,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating message:', error);
       res.status(500).json({ error: 'Failed to create message' });
+    }
+  });
+
+  // File upload endpoint
+  app.post('/api/uploads', authenticateToken, upload.array('files', 6), validateFileUpload, async (req, res) => {
+    try {
+      if (!req.files || !Array.isArray(req.files)) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
+      const uploadedFiles = req.files.map((file: Express.Multer.File) => ({
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        originalName: file.originalname,
+        filename: file.filename,
+        size: file.size,
+        mimetype: file.mimetype,
+        path: file.path,
+      }));
+
+      res.json({ files: uploadedFiles });
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      res.status(500).json({ error: 'Failed to upload files' });
     }
   });
 

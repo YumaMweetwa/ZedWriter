@@ -14,7 +14,7 @@ import { generateId, calculateAmount } from '@/utils/helpers';
 import { validateFile, formatFileSize } from '@/lib/storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, uploadFiles } from '@/lib/queryClient';
 import { WORK_TYPES, PAYMENT_METHODS, PAYMENT_ARRANGEMENTS } from '@/utils/constants';
 
 const submissionSchema = z.object({
@@ -155,8 +155,30 @@ export const SubmissionWizard = ({ preselectedType }: SubmissionWizardProps) => 
         message: 'Please wait while we process your submission.'
       });
 
+      // Upload files first if any exist
+      let uploadedFileReferences = [];
+      if (uploadedFiles.length > 0) {
+        setLoading({
+          isLoading: true,
+          title: 'Uploading Files...',
+          message: 'Please wait while we upload your files.'
+        });
+        
+        const validFiles = uploadedFiles.filter(f => !f.error).map(f => f.file);
+        if (validFiles.length > 0) {
+          const uploadResult = await uploadFiles(validFiles);
+          uploadedFileReferences = uploadResult.files;
+        }
+        
+        setLoading({
+          isLoading: true,
+          title: 'Creating Submission...',
+          message: 'Please wait while we process your submission.'
+        });
+      }
+
       const submissionData = {
-        userId: user.id,
+        // Remove userId - server will add it through authentication
         type: data.type,
         title: data.researchTitle || data.assignmentTopic || `${WORK_TYPES[data.type]?.label} Submission`,
         description: data.comments,
@@ -175,17 +197,12 @@ export const SubmissionWizard = ({ preselectedType }: SubmissionWizardProps) => 
           instructorName: data.instructorName,
         },
         fileFormat: data.fileFormat,
-        preferredDate: new Date(data.preferredDate),
+        preferredDate: data.preferredDate, // Send as string, server will convert
         paymentMethod: data.paymentMethod,
         paymentArrangement: data.paymentArrangement,
         amount: calculateAmount(data.type),
         paidAmount: 0,
-        files: uploadedFiles.map(f => ({
-          id: f.id,
-          name: f.file.name,
-          size: f.file.size,
-          type: f.file.type,
-        })),
+        files: uploadedFileReferences, // Use uploaded file references
         comments: data.comments,
         status: 'pending',
       };
