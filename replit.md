@@ -39,9 +39,8 @@ The system uses Firebase Firestore with the following core collections:
 - **pricingServices**: Dynamic pricing configuration
 
 ### Authentication System
-The platform implements a hybrid authentication approach:
+The platform implements Firebase authentication:
 - **Firebase Auth**: Primary authentication with Google OAuth integration
-- **Session-based Auth**: Fallback system with connect-pg-simple for session storage
 - **Authorization**: Role-based access control (student/admin) with protected routes
 - **Token Management**: JWT tokens for API authentication with Firebase ID token verification
 
@@ -55,7 +54,6 @@ The platform implements a hybrid authentication approach:
 
 ### Cloud Services
 - **Firebase**: Authentication, Firestore, Cloud Storage, and Cloud Functions
-- **Neon Database**: Serverless PostgreSQL hosting with connection pooling
 - **Replit**: Development environment with integrated deployment pipeline
 
 ### Authentication Providers
@@ -70,7 +68,6 @@ The platform implements a hybrid authentication approach:
 ### Development Tools
 - **TypeScript**: Full-stack type safety with shared schema definitions
 - **ESBuild**: Fast bundling for server-side code in production
-- **Drizzle Kit**: Database migrations and schema management
 - **React Query**: Client-side data fetching and caching (referenced but not fully implemented)
 
 ### UI and Styling Dependencies

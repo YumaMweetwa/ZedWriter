@@ -382,7 +382,7 @@ export class FirestoreStorage implements IStorage {
         .where('userId', '==', userId)
         .orderBy('updatedAt', 'desc')
         .get();
-      return roomsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatRoom));
+      return this.convertFirestoreDocs<ChatRoom>(roomsQuery.docs);
     } catch (error) {
       console.error('Error getting chat rooms by user:', error);
       return [];
@@ -393,7 +393,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const roomWithTimestamps = this.addTimestamps(insertChatRoom);
       const roomRef = await this.db.collection('chatRooms').add(roomWithTimestamps);
-      return { id: roomRef.id, ...roomWithTimestamps } as ChatRoom;
+      const newDoc = await roomRef.get();
+      return this.convertFirestoreDoc<ChatRoom>(newDoc);
     } catch (error) {
       console.error('Error creating chat room:', error);
       throw error;
@@ -406,7 +407,7 @@ export class FirestoreStorage implements IStorage {
         .where('roomId', '==', roomId)
         .orderBy('createdAt', 'asc')
         .get();
-      return messagesQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+      return this.convertFirestoreDocs<Message>(messagesQuery.docs);
     } catch (error) {
       console.error('Error getting messages by room:', error);
       return [];
@@ -417,7 +418,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const messageWithTimestamps = this.addTimestamps(insertMessage);
       const messageRef = await this.db.collection('messages').add(messageWithTimestamps);
-      return { id: messageRef.id, ...messageWithTimestamps } as Message;
+      const newDoc = await messageRef.get();
+      return this.convertFirestoreDoc<Message>(newDoc);
     } catch (error) {
       console.error('Error creating message:', error);
       throw error;
@@ -457,7 +459,7 @@ export class FirestoreStorage implements IStorage {
         .where('referrerId', '==', userId)
         .orderBy('createdAt', 'desc')
         .get();
-      return referralsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+      return this.convertFirestoreDocs<Referral>(referralsQuery.docs);
     } catch (error) {
       console.error('Error getting referrals by user:', error);
       return [];
@@ -468,7 +470,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const referralWithTimestamps = this.addTimestamps(insertReferral);
       const referralRef = await this.db.collection('referrals').add(referralWithTimestamps);
-      return { id: referralRef.id, ...referralWithTimestamps } as Referral;
+      const newDoc = await referralRef.get();
+      return this.convertFirestoreDoc<Referral>(newDoc);
     } catch (error) {
       console.error('Error creating referral:', error);
       throw error;
@@ -482,7 +485,7 @@ export class FirestoreStorage implements IStorage {
         .where('userId', '==', userId)
         .orderBy('createdAt', 'desc')
         .get();
-      return paymentsQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+      return this.convertFirestoreDocs<Payment>(paymentsQuery.docs);
     } catch (error) {
       console.error('Error getting payments by user:', error);
       return [];
@@ -498,7 +501,7 @@ export class FirestoreStorage implements IStorage {
         .get();
       if (paymentsQuery.empty) return undefined;
       const paymentDoc = paymentsQuery.docs[0];
-      return { id: paymentDoc.id, ...paymentDoc.data() } as Payment;
+      return this.convertFirestoreDoc<Payment>(paymentDoc);
     } catch (error) {
       console.error('Error getting payment by transaction ID:', error);
       return undefined;
@@ -509,7 +512,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const paymentWithTimestamps = this.addTimestamps(insertPayment);
       const paymentRef = await this.db.collection('payments').add(paymentWithTimestamps);
-      return { id: paymentRef.id, ...paymentWithTimestamps } as Payment;
+      const newDoc = await paymentRef.get();
+      return this.convertFirestoreDoc<Payment>(newDoc);
     } catch (error) {
       console.error('Error creating payment:', error);
       throw error;
@@ -521,7 +525,7 @@ export class FirestoreStorage implements IStorage {
       const updatesWithTimestamp = this.updateTimestamp(updates);
       await this.db.collection('payments').doc(id).update(updatesWithTimestamp);
       const updatedDoc = await this.db.collection('payments').doc(id).get();
-      return { id: updatedDoc.id, ...updatedDoc.data() } as Payment;
+      return this.convertFirestoreDoc<Payment>(updatedDoc);
     } catch (error) {
       console.error('Error updating payment:', error);
       throw error;
@@ -534,7 +538,7 @@ export class FirestoreStorage implements IStorage {
       const pricingQuery = await this.db.collection('pricingServices')
         .orderBy('orderIndex', 'asc')
         .get();
-      return pricingQuery.docs.map(doc => ({ id: doc.id, ...doc.data() } as PricingService));
+      return this.convertFirestoreDocs<PricingService>(pricingQuery.docs);
     } catch (error) {
       console.error('Error getting pricing services:', error);
       return [];
@@ -545,7 +549,8 @@ export class FirestoreStorage implements IStorage {
     try {
       const serviceWithTimestamps = this.addTimestamps(service);
       const serviceRef = await this.db.collection('pricingServices').add(serviceWithTimestamps);
-      return { id: serviceRef.id, ...serviceWithTimestamps } as PricingService;
+      const newDoc = await serviceRef.get();
+      return this.convertFirestoreDoc<PricingService>(newDoc);
     } catch (error) {
       console.error('Error creating pricing service:', error);
       throw error;
@@ -557,7 +562,7 @@ export class FirestoreStorage implements IStorage {
       const updatesWithTimestamp = this.updateTimestamp(updates);
       await this.db.collection('pricingServices').doc(id).update(updatesWithTimestamp);
       const updatedDoc = await this.db.collection('pricingServices').doc(id).get();
-      return { id: updatedDoc.id, ...updatedDoc.data() } as PricingService;
+      return this.convertFirestoreDoc<PricingService>(updatedDoc);
     } catch (error) {
       console.error('Error updating pricing service:', error);
       throw error;
