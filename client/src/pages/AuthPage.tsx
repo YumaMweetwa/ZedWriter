@@ -1,13 +1,42 @@
 import { useLocation } from 'wouter';
 import { EmailPasswordSignIn } from '@/components/EmailPasswordSignIn';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const AuthPage = () => {
   const [location, setLocation] = useLocation();
+  const { setUser } = useAuth();
 
   const handleAuthSuccess = () => {
     // Redirect to dashboard after successful authentication
+    setLocation('/dashboard');
+  };
+
+  const handleGuestContinue = () => {
+    // Create mock user for development/testing
+    const mockUser = {
+      id: 'guest-user-123',
+      firebaseUid: 'guest-firebase-uid',
+      email: 'guest@example.com',
+      firstName: 'Guest',
+      lastName: 'User',
+      studentId: null,
+      phone: null,
+      school: null,
+      role: 'student',
+      profilePicture: null,
+      referralCode: null,
+      referralPoints: 0,
+      totalPaid: 0,
+      totalOwed: 0,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    setUser(mockUser);
     setLocation('/dashboard');
   };
 
@@ -43,6 +72,31 @@ export const AuthPage = () => {
 
           {/* Google Sign In */}
           <GoogleSignInButton onSuccess={handleAuthSuccess} />
+
+          {/* Guest Continue - Development Only */}
+          {import.meta.env.DEV && (
+            <>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Development
+                  </span>
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleGuestContinue}
+                variant="outline"
+                className="w-full"
+                data-testid="button-continue-guest"
+              >
+                Continue as Guest
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="text-center text-sm">
