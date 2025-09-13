@@ -65,7 +65,7 @@ export const TopicGeneratorPage = () => {
       setLoading({
         isLoading: true,
         title: 'Generating Topics...',
-        message: 'Our AI is creating personalized research topics for you.'
+        message: 'Our platform is creating personalized research topics for you.'
       });
 
       // Simulate API call - in real app this would call a Cloud Function
@@ -146,7 +146,7 @@ export const TopicGeneratorPage = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground mb-4">Research Topic Generator</h1>
-          <p className="text-muted-foreground">Get AI-powered suggestions for your research topics</p>
+          <p className="text-muted-foreground">Get platform-generated suggestions for your research topics</p>
         </div>
 
         <Card className="p-8 mb-8">

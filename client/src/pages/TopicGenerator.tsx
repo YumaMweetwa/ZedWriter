@@ -138,7 +138,7 @@ export const TopicGenerator = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h1 data-testid="text-topic-generator-title" className="text-3xl font-bold text-foreground">Research Topic Generator</h1>
-            <p data-testid="text-topic-generator-subtitle" className="text-muted-foreground mt-2">Get AI-powered suggestions for your research topics</p>
+            <p data-testid="text-topic-generator-subtitle" className="text-muted-foreground mt-2">Get platform-generated suggestions for your research topics</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">

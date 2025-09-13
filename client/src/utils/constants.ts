@@ -141,9 +141,9 @@ export const PAYMENT_ARRANGEMENTS = [
 ];
 
 export const CONTACT_INFO = {
-  email: "support@zedwriter.zm",
+  email: "zedwriterassists@gmail.com",
   whatsapp: "+260971215524",
-  phone: "+260971215524",
+  phone: "+260969499769",
   name: "Yuma Mweetwa",
   airtelMoney: "+260971215524",
   mtnMoney: "+260969499769"
