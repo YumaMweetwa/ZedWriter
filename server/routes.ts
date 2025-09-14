@@ -224,10 +224,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Access denied: You can only access your own user data' });
       }
       
-      const user = await storage.getUserByFirebaseUid(req.params.uid);
+      let user = await storage.getUserByFirebaseUid(req.params.uid);
+      
+      // If user doesn't exist, auto-create them using Firebase token info
       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+        console.log('Creating new user record for Firebase UID:', req.params.uid);
+        
+        const newUserData = {
+          firebaseUid: req.user!.uid,
+          email: req.user!.email || '',
+          firstName: '',
+          lastName: '',
+          role: 'student',
+          referralCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
+        };
+        
+        try {
+          user = await storage.createUser(newUserData);
+          console.log('Successfully created new user:', user.id);
+        } catch (createError) {
+          console.error('Error creating new user:', createError);
+          return res.status(500).json({ error: 'Failed to create user account' });
+        }
       }
+      
       res.json(user);
     } catch (error) {
       console.error('Error fetching user by Firebase UID:', error);

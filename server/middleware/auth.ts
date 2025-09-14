@@ -55,15 +55,21 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     const user = await storage.getUserByFirebaseUid(decodedToken.uid);
     
     if (!user) {
-      return res.status(401).json({ error: 'User not found in database' });
+      // For new users, we'll populate basic info from the Firebase token
+      // The route handler can create the user record if needed
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        userId: '', // Will be populated after user creation
+      };
+    } else {
+      // Add user info to request for existing users
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        userId: user.id,
+      };
     }
-
-    // Add user info to request
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      userId: user.id,
-    };
 
     next();
   } catch (error) {
