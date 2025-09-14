@@ -19,6 +19,7 @@ import {
   type InsertPricingService
 } from "@shared/types";
 import admin from "./firebase-admin";
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Enhanced storage interface with all required methods
 export interface IStorage {
@@ -90,18 +91,21 @@ export class FirestoreStorage implements IStorage {
   private db: admin.firestore.Firestore;
 
   constructor() {
-    // Initialize Firestore with explicit settings to prevent metadata server calls
-    this.db = admin.firestore();
+    // Get database ID from environment or use default
+    const databaseId = process.env.FIRESTORE_DATABASE_ID || '(default)';
+    
+    console.log(`Initializing Firestore with database ID: ${databaseId}`);
+    
+    // Initialize Firestore with explicit database targeting
+    this.db = getFirestore(admin.app(), databaseId);
     
     // Configure Firestore settings to work in Replit environment
     this.db.settings({ 
       ignoreUndefinedProperties: true,
-      // Disable SSL for development if needed
       ssl: true,
-      // Set custom host if needed (currently using default)
     });
     
-    console.log('Firestore connection initialized');
+    console.log('Firestore connection initialized with explicit database targeting');
   }
 
   private generateId(): string {
