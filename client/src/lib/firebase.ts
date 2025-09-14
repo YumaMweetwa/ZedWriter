@@ -61,25 +61,11 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
-// Create user document in Firestore
+// Create user document in Firestore (disabled - handled server-side)
 export const createUserDocument = async (user: User) => {
-  if (!user || !db) return;
-  
-  try {
-    const userRef = doc(db, 'users', user.uid);
-    const userSnapshot = await getDoc(userRef);
-    
-    if (!userSnapshot.exists()) {
-      const { displayName, email } = user;
-      await setDoc(userRef, {
-        displayName,
-        email,
-        createdAt: new Date(),
-      });
-    }
-  } catch (error) {
-    console.error('Error creating user document:', error);
-  }
+  // User creation is now handled entirely by the server-side API
+  // This prevents client-side Firestore connection issues
+  console.log('User document creation delegated to server-side API');
 };
 
 // Get user document from Firestore
@@ -113,8 +99,8 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
-    // Create user document in Firestore if it doesn't exist
-    await createUserDocument(user);
+    // User creation handled by server-side API
+    // await createUserDocument(user);
     
     return user;
   } catch (error) {
@@ -133,8 +119,8 @@ export const signInWithEmail = async (email: string, password: string) => {
     const result = await signInWithEmailAndPassword(auth, email, password);
     const user = result.user;
     
-    // Create user document in Firestore if it doesn't exist
-    await createUserDocument(user);
+    // User creation handled by server-side API  
+    // await createUserDocument(user);
     
     return user;
   } catch (error) {
@@ -158,8 +144,8 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
       await updateProfile(user, { displayName });
     }
     
-    // Create user document in Firestore
-    await createUserDocument(user);
+    // User creation handled by server-side API
+    // await createUserDocument(user);
     
     return user;
   } catch (error) {

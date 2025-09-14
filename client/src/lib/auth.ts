@@ -51,31 +51,27 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
-    // Check if user exists in our PostgreSQL database
+    // Let the server handle all user creation
+    // Just trigger the user lookup which will create the user if needed
     try {
-      const existingUser = await apiRequest(`/api/users/firebase/${user.uid}`);
-      if (existingUser) {
-        return result;
-      }
+      await apiRequest(`/api/users/firebase/${user.uid}`);
     } catch (error) {
-      // User doesn't exist, create them
+      // If user doesn't exist, create them on the server
+      const userData: InsertUser = {
+        firebaseUid: user.uid,
+        email: user.email!,
+        firstName: user.displayName?.split(" ")[0] || "",
+        lastName: user.displayName?.split(" ").slice(1).join(" ") || "",
+        profilePicture: user.photoURL || undefined,
+        referralCode: generateReferralCode(),
+        role: "student",
+      };
+      
+      await apiRequest('/api/users', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
     }
-
-    // Create new user in our PostgreSQL database
-    const userData: InsertUser = {
-      firebaseUid: user.uid,
-      email: user.email!,
-      firstName: user.displayName?.split(" ")[0] || "",
-      lastName: user.displayName?.split(" ").slice(1).join(" ") || "",
-      profilePicture: user.photoURL || undefined,
-      referralCode: generateReferralCode(),
-      role: "student",
-    };
-    
-    await apiRequest('/api/users', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
     
     return result;
   } catch (error) {
@@ -107,7 +103,7 @@ export const signUpWithEmail = async (email: string, password: string, userData:
     const result = await createUserWithEmailAndPassword(auth, email, password);
     const user = result.user;
     
-    // Create user in our PostgreSQL database
+    // Create user on the server
     const fullUserData: InsertUser = {
       ...userData,
       firebaseUid: user.uid,
