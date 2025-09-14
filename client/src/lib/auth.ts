@@ -12,18 +12,31 @@ import { User, InsertUser } from "@shared/types";
 
 const googleProvider = new GoogleAuthProvider();
 
-// API helper function
+// API helper function with authentication
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+
+  // Add Authorization header if user is authenticated
+  if (auth?.currentUser) {
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${idToken}`;
+    } catch (error) {
+      console.warn('Failed to get ID token:', error);
+    }
+  }
+
   const response = await fetch(endpoint, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   return response.json();
@@ -150,8 +163,22 @@ export const getCurrentUser = async (): Promise<User | null> => {
   if (!firebaseUser) return null;
   
   try {
-    const user = await apiRequest(`/api/users/firebase/${firebaseUser.uid}`);
-    return user;
+    // Get Firebase ID token for authentication
+    const idToken = await firebaseUser.getIdToken();
+    
+    const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`, {
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.error('Failed to get current user:', response.status);
+      return null;
+    }
   } catch (error) {
     console.error("Get current user error:", error);
     return null;

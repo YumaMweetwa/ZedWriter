@@ -33,11 +33,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshUser = async () => {
     if (firebaseUser) {
       try {
-        const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`);
+        // Get Firebase ID token for authentication
+        const idToken = await firebaseUser.getIdToken();
+        
+        const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`, {
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
         } else {
+          console.error('Failed to fetch user data:', response.status);
           setUser(null);
         }
       } catch (error) {
@@ -55,11 +65,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       if (firebaseUser) {
         try {
-          const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`);
+          // Get Firebase ID token for authentication
+          const idToken = await firebaseUser.getIdToken();
+          
+          const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`, {
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
           if (response.ok) {
             const userData = await response.json();
             setUser(userData);
           } else {
+            console.error('Failed to fetch user data:', response.status, await response.text());
             setUser(null);
           }
         } catch (error) {

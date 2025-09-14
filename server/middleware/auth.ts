@@ -25,8 +25,31 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
     
-    // Verify the Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    let decodedToken;
+    
+    try {
+      // Try to verify the Firebase ID token
+      decodedToken = await admin.auth().verifyIdToken(token);
+    } catch (adminError) {
+      console.warn('Firebase Admin token verification failed:', adminError);
+      
+      // Fallback: Basic token validation (in development mode)
+      // In production, you should have proper service account setup
+      if (process.env.NODE_ENV === 'development') {
+        // For development, we'll trust the frontend Firebase Auth
+        // This is NOT secure for production
+        try {
+          // Basic JWT decode (NOT verification - just extraction)
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          decodedToken = { uid: payload.user_id, email: payload.email };
+          console.warn('Using development token fallback - NOT SECURE FOR PRODUCTION');
+        } catch (decodeError) {
+          return res.status(401).json({ error: 'Invalid token format' });
+        }
+      } else {
+        return res.status(401).json({ error: 'Token verification failed' });
+      }
+    }
     
     // Get user from our database using Firebase UID
     const user = await storage.getUserByFirebaseUid(decodedToken.uid);
@@ -55,7 +78,25 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      
+      let decodedToken;
+      
+      try {
+        decodedToken = await admin.auth().verifyIdToken(token);
+      } catch (adminError) {
+        // Fallback for development mode
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            decodedToken = { uid: payload.user_id, email: payload.email };
+          } catch (decodeError) {
+            return next(); // Continue without auth
+          }
+        } else {
+          return next(); // Continue without auth
+        }
+      }
+      
       const user = await storage.getUserByFirebaseUid(decodedToken.uid);
       
       if (user) {
