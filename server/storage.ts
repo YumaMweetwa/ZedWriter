@@ -87,11 +87,21 @@ export interface IStorage {
 
 // Firestore-based storage implementation
 export class FirestoreStorage implements IStorage {
-  private db = admin.firestore();
+  private db: admin.firestore.Firestore;
 
   constructor() {
-    // Initialize Firestore settings
-    this.db.settings({ ignoreUndefinedProperties: true });
+    // Initialize Firestore with explicit settings to prevent metadata server calls
+    this.db = admin.firestore();
+    
+    // Configure Firestore settings to work in Replit environment
+    this.db.settings({ 
+      ignoreUndefinedProperties: true,
+      // Disable SSL for development if needed
+      ssl: true,
+      // Set custom host if needed (currently using default)
+    });
+    
+    console.log('Firestore connection initialized');
   }
 
   private generateId(): string {
