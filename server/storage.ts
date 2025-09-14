@@ -636,4 +636,7 @@ export class FirestoreStorage implements IStorage {
   }
 }
 
-export const storage = new FirestoreStorage();
+// Import and export Supabase storage instead of Firestore
+import { SupabaseStorage } from './storage-supabase';
+
+export const storage = new SupabaseStorage();
