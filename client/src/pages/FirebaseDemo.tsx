@@ -44,9 +44,9 @@ export const FirebaseDemo = () => {
     <div className="min-h-screen py-8 bg-background">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Firebase Integration Demo</h1>
+          <h1 className="text-3xl font-bold text-foreground">Supabase Integration Demo</h1>
           <p className="text-muted-foreground mt-2">
-            Demonstrating Firebase Authentication, Firestore, and Storage integration
+            Demonstrating Supabase Authentication, Database, and Storage integration
           </p>
         </div>
 
@@ -55,15 +55,15 @@ export const FirebaseDemo = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span className="text-red-500">🔥</span>
-                Firebase Authentication
+                <span className="text-green-500">⚡</span>
+                Supabase Authentication
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!firebaseUser ? (
+              {!user ? (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground mb-4">
-                    Sign in with Google or use email/password to access Firebase features.
+                    Sign in with Google or use email/password to access Supabase features.
                   </p>
                   
                   {/* Google Sign In */}
@@ -86,13 +86,13 @@ export const FirebaseDemo = () => {
                 <div>
                   <div className="flex items-center gap-3 mb-4">
                     <img
-                      src={firebaseUser.photoURL || '/default-avatar.png'}
+                      src={user.user_metadata?.avatar_url || '/default-avatar.png'}
                       alt="Profile"
                       className="w-10 h-10 rounded-full"
                     />
                     <div>
-                      <p className="font-medium">{firebaseUser.displayName || 'User'}</p>
-                      <p className="text-sm text-muted-foreground">{firebaseUser.email}</p>
+                      <p className="font-medium">{user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
                   <Button onClick={handleSignOut} variant="outline" size="sm">
@@ -121,7 +121,7 @@ export const FirebaseDemo = () => {
                   <div>
                     <span className="text-sm font-medium">Name:</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      {user.firstName} {user.lastName}
+                      {user.user_metadata?.full_name || user.email?.split('@')[0] || 'Not provided'}
                     </span>
                   </div>
                   <div>
@@ -129,8 +129,8 @@ export const FirebaseDemo = () => {
                     <span className="text-sm text-muted-foreground ml-2">{user.email}</span>
                   </div>
                   <div>
-                    <span className="text-sm font-medium">Firebase UID:</span>
-                    <span className="text-sm text-muted-foreground ml-2">{user.firebaseUid}</span>
+                    <span className="text-sm font-medium">Supabase ID:</span>
+                    <span className="text-sm text-muted-foreground ml-2">{user.id}</span>
                   </div>
                 </div>
               ) : (
@@ -145,17 +145,17 @@ export const FirebaseDemo = () => {
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span className="text-orange-500">☁️</span>
-                Firebase Storage
+                <span className="text-blue-500">☁️</span>
+                Supabase Storage
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {firebaseUser ? (
+              {user ? (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Upload files to Firebase Storage. Uploaded files will be stored securely in the cloud.
+                    Upload files to Supabase Storage. Uploaded files will be stored securely in the cloud.
                   </p>
-                  <FirebaseFileUpload
+                  <SupabaseFileUpload
                     onUpload={handleFileUpload}
                     maxSize={5}
                     acceptedTypes={['image/*', 'application/pdf', '.doc', '.docx', '.txt']}
@@ -187,7 +187,7 @@ export const FirebaseDemo = () => {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Please sign in to upload files to Firebase Storage.
+                  Please sign in to upload files to Supabase Storage.
                 </p>
               )}
             </CardContent>
@@ -204,25 +204,25 @@ export const FirebaseDemo = () => {
               <div>
                 <h4 className="font-medium text-sm mb-2">🔐 Authentication</h4>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Firebase Auth with Google Provider</li>
+                  <li>• Supabase Auth with Google Provider</li>
                   <li>• Automatic user profile creation</li>
-                  <li>• Secure ID token verification</li>
+                  <li>• Secure JWT token verification</li>
                   <li>• PostgreSQL user management</li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-medium text-sm mb-2">💾 Data Storage</h4>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• PostgreSQL for user profiles</li>
-                  <li>• Firestore for documents (optional)</li>
-                  <li>• Hybrid approach for scalability</li>
+                  <li>• PostgreSQL for all data</li>
+                  <li>• Supabase real-time features</li>
+                  <li>• Row Level Security (RLS)</li>
                   <li>• Secure API endpoints</li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-medium text-sm mb-2">📁 File Storage</h4>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Firebase Storage for files</li>
+                  <li>• Supabase Storage for files</li>
                   <li>• Automatic file URL generation</li>
                   <li>• File type validation</li>
                   <li>• Progress tracking</li>

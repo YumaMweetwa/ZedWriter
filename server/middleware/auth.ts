@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
-import { storage } from '../storage';
+import { SupabaseStorage } from '../storage-supabase';
 
 // Initialize Supabase client for server-side auth verification
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
@@ -17,12 +17,17 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
+// Initialize storage instance
+const storage = new SupabaseStorage();
+
 // Extend Express Request interface to include authenticated user
 declare global {
   namespace Express {
     interface Request {
       user?: {
         id: string;
+        userId: string; // Alias for backward compatibility
+        uid: string; // Alias for backward compatibility  
         email?: string;
         profile?: any; // User profile from our database
       };
@@ -54,6 +59,8 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     // Add user info to request
     req.user = {
       id: user.id,
+      userId: user.id, // Backward compatibility alias
+      uid: user.id, // Backward compatibility alias
       email: user.email,
       profile: profile,
     };
@@ -81,6 +88,8 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
         
         req.user = {
           id: user.id,
+          userId: user.id, // Backward compatibility alias
+          uid: user.id, // Backward compatibility alias
           email: user.email,
           profile: profile,
         };

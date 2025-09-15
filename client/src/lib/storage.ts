@@ -1,5 +1,4 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { storage } from "./firebase";
+import { supabase } from "./supabase";
 
 export interface UploadProgress {
   progress: number;
@@ -13,25 +12,41 @@ export const uploadFile = async (
   onProgress?: (progress: UploadProgress) => void
 ): Promise<string> => {
   try {
-    const storageRef = ref(storage, `${path}/${file.name}`);
-    
     if (onProgress) {
       onProgress({ progress: 0, fileName: file.name });
     }
     
-    const snapshot = await uploadBytes(storageRef, file);
+    // Create unique file path
+    const timestamp = Date.now();
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `${path}/${timestamp}-${sanitizedFileName}`;
     
+    // Upload file to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('materials')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      throw error;
+    }
+
     if (onProgress) {
       onProgress({ progress: 100, fileName: file.name });
     }
     
-    const downloadURL = await getDownloadURL(snapshot.ref);
+    // Get the public URL for the uploaded file
+    const { data: { publicUrl } } = supabase.storage
+      .from('materials')
+      .getPublicUrl(filePath);
     
     if (onProgress) {
-      onProgress({ progress: 100, fileName: file.name, url: downloadURL });
+      onProgress({ progress: 100, fileName: file.name, url: publicUrl });
     }
     
-    return downloadURL;
+    return publicUrl;
   } catch (error) {
     console.error("File upload error:", error);
     throw error;
@@ -47,10 +62,15 @@ export const uploadMultipleFiles = async (
   return Promise.all(uploadPromises);
 };
 
-export const deleteFile = async (url: string): Promise<void> => {
+export const deleteFile = async (filePath: string): Promise<void> => {
   try {
-    const fileRef = ref(storage, url);
-    await deleteObject(fileRef);
+    const { error } = await supabase.storage
+      .from('materials')
+      .remove([filePath]);
+      
+    if (error) {
+      throw error;
+    }
   } catch (error) {
     console.error("File deletion error:", error);
     throw error;

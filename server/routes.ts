@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
+import { SupabaseStorage } from "./storage-supabase";
 import { authenticateToken, optionalAuth } from "./middleware/auth";
 import { upload, validateFileUpload } from "./middleware/upload";
 import { 
@@ -11,6 +11,9 @@ import {
 import "./firebase-admin"; // Initialize Firebase Admin
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+
+// Initialize Supabase storage
+const storage = new SupabaseStorage();
 
 // Simple validation schemas
 const submissionSchema = z.object({
