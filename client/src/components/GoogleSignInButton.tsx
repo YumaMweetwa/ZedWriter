@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { signInWithGoogle } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 interface GoogleSignInButtonProps {
@@ -23,7 +23,15 @@ export const GoogleSignInButton = ({
     setLoading(true);
     
     try {
-      await signInWithGoogle();
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Success",
         description: "Successfully signed in with Google!",

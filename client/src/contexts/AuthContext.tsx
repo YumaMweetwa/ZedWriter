@@ -1,14 +1,28 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChange } from '@/lib/firebase';
-import { User } from '@shared/types';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { supabase, getUserProfile } from '@/lib/supabase';
+
+// Profile type from our database
+interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  phone: string | null;
+  university: string | null;
+  avatar_url: string | null;
+  is_admin: boolean;
+  referral_code: string | null;
+  referred_by: string | null;
+  created_at: string;
+}
 
 interface AuthContextType {
-  firebaseUser: FirebaseUser | null;
-  user: User | null;
+  user: SupabaseUser | null;
+  profile: Profile | null;
+  session: Session | null;
   loading: boolean;
-  refreshUser: () => Promise<void>;
-  setUser: (user: User | null) => void;
+  refreshProfile: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,82 +40,81 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = async () => {
-    if (firebaseUser) {
+  const refreshProfile = async () => {
+    if (user) {
       try {
-        // Get Firebase ID token for authentication
-        const idToken = await firebaseUser.getIdToken();
-        
-        const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`, {
-          headers: {
-            'Authorization': `Bearer ${idToken}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        } else {
-          console.error('Failed to fetch user data:', response.status);
-          setUser(null);
-        }
+        const profileData = await getUserProfile(user.id);
+        setProfile(profileData);
       } catch (error) {
-        console.error('Error refreshing user:', error);
-        setUser(null);
+        console.error('Error refreshing profile:', error);
+        setProfile(null);
       }
     } else {
-      setUser(null);
+      setProfile(null);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error signing out:', error);
+      throw error;
     }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
-      setFirebaseUser(firebaseUser);
-      
-      if (firebaseUser) {
-        try {
-          // Get Firebase ID token for authentication
-          const idToken = await firebaseUser.getIdToken();
-          
-          const response = await fetch(`/api/users/firebase/${firebaseUser.uid}`, {
-            headers: {
-              'Authorization': `Bearer ${idToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          } else {
-            console.error('Failed to fetch user data:', response.status, await response.text());
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-          setUser(null);
-        }
-      } else {
-        setUser(null);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        refreshProfile();
       }
-      
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await refreshProfile();
+        } else {
+          setProfile(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  // Update profile when user changes
+  useEffect(() => {
+    if (user && !loading) {
+      refreshProfile();
+    }
+  }, [user?.id]);
+
   const value = {
-    firebaseUser,
     user,
+    profile,
+    session,
     loading,
-    refreshUser,
-    setUser,
+    refreshProfile,
+    signOut,
   };
 
   return (

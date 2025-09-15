@@ -2,29 +2,29 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { EmailPasswordSignIn } from '@/components/EmailPasswordSignIn';
-import { FirebaseFileUpload } from '@/components/FirebaseFileUpload';
+import { SupabaseFileUpload } from '@/components/SupabaseFileUpload';
 import { useAuth } from '@/contexts/AuthContext';
-import { logOut } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 
 export const FirebaseDemo = () => {
-  const { firebaseUser, user } = useAuth();
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ url: string; name: string }>>([]);
+  const { user } = useAuth();
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ url: string; name: string; path: string }>>([]);
   const { toast } = useToast();
 
-  const handleFileUpload = (url: string, fileName: string) => {
-    setUploadedFiles(prev => [...prev, { url, name: fileName }]);
+  const handleFileUpload = (url: string, fileName: string, filePath: string) => {
+    setUploadedFiles(prev => [...prev, { url, name: fileName, path: filePath }]);
     toast({
       title: "File uploaded!",
-      description: `${fileName} has been uploaded to Firebase Storage.`,
+      description: `${fileName} has been uploaded to Supabase Storage.`,
     });
   };
 
   const handleSignOut = async () => {
     try {
-      await logOut();
+      await supabase.auth.signOut();
       setUploadedFiles([]);
       toast({
         title: "Signed out",

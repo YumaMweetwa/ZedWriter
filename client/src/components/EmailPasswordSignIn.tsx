@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithEmail, signUpWithEmail } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 
 // Validation schemas
 const signInSchema = z.object({
@@ -20,7 +20,7 @@ const signUpSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
-  displayName: z.string().min(2, 'Name must be at least 2 characters'),
+  fullName: z.string().min(2, 'Name must be at least 2 characters'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -51,14 +51,20 @@ export const EmailPasswordSignIn = ({ onSuccess }: EmailPasswordSignInProps) => 
       email: '',
       password: '',
       confirmPassword: '',
-      displayName: '',
+      fullName: '',
     },
   });
 
   const handleSignIn = async (data: SignInFormData) => {
     setIsLoading(true);
     try {
-      await signInWithEmail(data.email, data.password);
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Welcome back!",
         description: "You have been successfully signed in.",
@@ -78,10 +84,21 @@ export const EmailPasswordSignIn = ({ onSuccess }: EmailPasswordSignInProps) => 
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     try {
-      await signUpWithEmail(data.email, data.password, data.displayName);
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+          }
+        }
+      });
+
+      if (error) throw error;
+
       toast({
         title: "Account created!",
-        description: "Your account has been created successfully.",
+        description: "Please check your email to verify your account.",
       });
       onSuccess?.();
     } catch (error: any) {
@@ -176,7 +193,7 @@ export const EmailPasswordSignIn = ({ onSuccess }: EmailPasswordSignInProps) => 
               <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                 <FormField
                   control={signUpForm.control}
-                  name="displayName"
+                  name="fullName"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>

@@ -1,15 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { createClient } from '@supabase/supabase-js';
 import { storage } from '../storage';
+
+// Initialize Supabase client for server-side auth verification
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables. Please set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 // Extend Express Request interface to include authenticated user
 declare global {
   namespace Express {
     interface Request {
       user?: {
-        uid: string;
+        id: string;
         email?: string;
-        userId: string; // Our database user ID
+        profile?: any; // User profile from our database
       };
     }
   }
@@ -25,51 +40,23 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
     
-    let decodedToken;
+    // Verify the JWT token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     
-    try {
-      // Try to verify the Firebase ID token
-      decodedToken = await admin.auth().verifyIdToken(token);
-    } catch (adminError) {
-      console.warn('Firebase Admin token verification failed:', adminError);
-      
-      // Fallback: Basic token validation (in development mode)
-      // In production, you should have proper service account setup
-      if (process.env.NODE_ENV === 'development') {
-        // For development, we'll trust the frontend Firebase Auth
-        // This is NOT secure for production
-        try {
-          // Basic JWT decode (NOT verification - just extraction)
-          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-          decodedToken = { uid: payload.user_id, email: payload.email };
-          console.warn('Using development token fallback - NOT SECURE FOR PRODUCTION');
-        } catch (decodeError) {
-          return res.status(401).json({ error: 'Invalid token format' });
-        }
-      } else {
-        return res.status(401).json({ error: 'Token verification failed' });
-      }
+    if (error || !user) {
+      console.error('Supabase auth verification failed:', error);
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
     
-    // Get user from our database using Firebase UID
-    const user = await storage.getUserByFirebaseUid(decodedToken.uid);
+    // Get user profile from our database
+    const profile = await getUserProfile(user.id);
     
-    if (!user) {
-      // For new users, we'll populate basic info from the Firebase token
-      // The route handler can create the user record if needed
-      req.user = {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        userId: '', // Will be populated after user creation
-      };
-    } else {
-      // Add user info to request for existing users
-      req.user = {
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        userId: user.id,
-      };
-    }
+    // Add user info to request
+    req.user = {
+      id: user.id,
+      email: user.email,
+      profile: profile,
+    };
 
     next();
   } catch (error) {
@@ -85,31 +72,17 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       
-      let decodedToken;
+      // Verify the JWT token with Supabase
+      const { data: { user }, error } = await supabase.auth.getUser(token);
       
-      try {
-        decodedToken = await admin.auth().verifyIdToken(token);
-      } catch (adminError) {
-        // Fallback for development mode
-        if (process.env.NODE_ENV === 'development') {
-          try {
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-            decodedToken = { uid: payload.user_id, email: payload.email };
-          } catch (decodeError) {
-            return next(); // Continue without auth
-          }
-        } else {
-          return next(); // Continue without auth
-        }
-      }
-      
-      const user = await storage.getUserByFirebaseUid(decodedToken.uid);
-      
-      if (user) {
+      if (!error && user) {
+        // Get user profile from our database
+        const profile = await getUserProfile(user.id);
+        
         req.user = {
-          uid: decodedToken.uid,
-          email: decodedToken.email,
-          userId: user.id,
+          id: user.id,
+          email: user.email,
+          profile: profile,
         };
       }
     }
@@ -120,3 +93,24 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     next();
   }
 };
+
+// Helper function to get user profile
+async function getUserProfile(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    return null;
+  }
+}
