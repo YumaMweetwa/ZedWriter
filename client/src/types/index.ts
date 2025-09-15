@@ -65,3 +65,31 @@ export interface LoadingState {
   title?: string;
   message?: string;
 }
+
+// Material types for study materials
+export interface Material {
+  id: string;
+  title: string;
+  description: string;
+  program: string;
+  year: string;
+  type: string;
+  file: {
+    url: string;
+    contentType: string;
+  };
+  createdAt: string;
+  uploadedBy?: string;
+}
+
+// Message types for chat
+export interface Message {
+  id: string;
+  senderId: string;
+  content: string;
+  type: 'text' | 'file' | 'voice';
+  fileUrl?: string;
+  fileName?: string;
+  createdAt: string;
+  isRead: boolean;
+}

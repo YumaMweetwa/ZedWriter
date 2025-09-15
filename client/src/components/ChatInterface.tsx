@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -29,12 +29,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ submissionId, adminMode =
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { currentUser, userDocument } = useAuth();
-  const { connected, messages: wsMessages, sendChatMessage } = useWebSocket(currentUser?.uid);
+  const { user, profile } = useAuth();
+  const { connected, messages: wsMessages, sendChatMessage } = useWebSocket(user?.id);
 
   const { data: messages = [], refetch } = useQuery({
-    queryKey: ['/api/messages', currentUser?.uid, submissionId],
-    enabled: !!currentUser?.uid,
+    queryKey: ['/api/messages', user?.id, submissionId],
+    enabled: !!user?.id,
   });
 
   // Combine stored messages with real-time messages
@@ -49,7 +49,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ submissionId, adminMode =
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !currentUser) return;
+    if (!newMessage.trim() || !user) return;
 
     const receiverId = adminMode ? 'student' : 'admin'; // Simplified receiver logic
     sendChatMessage(receiverId, newMessage, submissionId);
@@ -72,7 +72,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ submissionId, adminMode =
   };
 
   const isMyMessage = (message: ChatMessage) => {
-    return message.senderId === currentUser?.uid;
+    return message.senderId === user?.id;
   };
 
   return (
