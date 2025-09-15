@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '../hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth';
 import { getMessages, sendMessage } from '../lib/firestore';
 import { uploadChatFile } from '../lib/storage';
 import { useToast } from '@/hooks/use-toast';
