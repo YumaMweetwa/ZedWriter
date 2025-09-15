@@ -18,7 +18,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { uploadFile } from '@/lib/firebase';
+import { uploadFile } from '@/lib/storage';
 
 // Announcements Management Component
 const AnnouncementsManagement = () => {

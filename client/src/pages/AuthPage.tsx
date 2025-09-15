@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export const AuthPage = () => {
   const [location, setLocation] = useLocation();
-  const { setUser } = useAuth();
+  const { user } = useAuth();
 
   const handleAuthSuccess = () => {
     // Redirect to dashboard after successful authentication
@@ -18,7 +18,6 @@ export const AuthPage = () => {
     // Create mock user for development/testing
     const mockUser = {
       id: 'guest-user-123',
-      firebaseUid: 'guest-firebase-uid',
       email: 'guest@example.com',
       firstName: 'Guest',
       lastName: 'User',
@@ -32,11 +31,12 @@ export const AuthPage = () => {
       totalPaid: 0,
       totalOwed: 0,
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      isAdmin: true,
     };
     
-    setUser(mockUser);
+    // Mock user for development - redirect to dashboard
+    console.log('Mock user login attempt', mockUser);
     setLocation('/dashboard');
   };
 

@@ -16,8 +16,34 @@ interface Profile {
   created_at: string;
 }
 
+// Combined user type that matches what components expect
+interface CombinedUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  school?: string;
+  studentId?: string;
+  role: string;
+  profilePicture?: string;
+  referralCode?: string;
+  referralPoints?: number;
+  totalPaid?: number;
+  totalOwed?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  // Admin field
+  isAdmin?: boolean;
+  // Additional properties for compatibility
+  displayName?: string;
+  points?: number;
+  avatarUrl?: string;
+}
+
 interface AuthContextType {
-  user: SupabaseUser | null;
+  user: CombinedUser | null;
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
@@ -40,22 +66,51 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [user, setUser] = useState<CombinedUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    if (user) {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
       try {
-        const profileData = await getUserProfile(user.id);
+        const profileData = await getUserProfile(authUser.id);
         setProfile(profileData);
+        
+        // Create combined user object
+        const combinedUser: CombinedUser = {
+          id: authUser.id,
+          email: authUser.email || '',
+          firstName: profileData?.full_name?.split(' ')[0] || '',
+          lastName: profileData?.full_name?.split(' ').slice(1).join(' ') || '',
+          phone: profileData?.phone || undefined,
+          school: profileData?.university || undefined,
+          studentId: undefined, // Not in profiles table
+          role: profileData?.is_admin ? 'admin' : 'student',
+          profilePicture: profileData?.avatar_url || undefined,
+          referralCode: profileData?.referral_code || undefined,
+          referralPoints: 0, // Would need to calculate from referral_rewards table
+          totalPaid: 0, // Would need to calculate from payments table
+          totalOwed: 0, // Would need to calculate from submissions table
+          isActive: true,
+          createdAt: profileData?.created_at || authUser.created_at,
+          isAdmin: profileData?.is_admin || false,
+          // Additional properties for compatibility
+          displayName: profileData?.full_name || undefined,
+          points: 0, // Same as referralPoints
+          avatarUrl: profileData?.avatar_url || undefined
+        };
+        
+        setUser(combinedUser);
       } catch (error) {
         console.error('Error refreshing profile:', error);
         setProfile(null);
+        setUser(null);
       }
     } else {
       setProfile(null);
+      setUser(null);
     }
   };
 
@@ -73,9 +128,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
       if (session?.user) {
         refreshProfile();
+      } else {
+        setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -86,12 +143,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.log('Auth state changed:', event, session?.user?.id);
         
         setSession(session);
-        setUser(session?.user ?? null);
         
         if (session?.user) {
           await refreshProfile();
         } else {
           setProfile(null);
+          setUser(null);
         }
         
         setLoading(false);
@@ -101,12 +158,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Update profile when user changes
+  // Update profile when auth state changes
   useEffect(() => {
-    if (user && !loading) {
+    if (session?.user && !loading) {
       refreshProfile();
     }
-  }, [user?.id]);
+  }, [session?.user?.id]);
 
   const value = {
     user,

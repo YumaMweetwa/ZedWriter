@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { MessageCircle, ExternalLink } from 'lucide-react';
 
 export const WhatsAppChat = () => {
-  const { firebaseUser } = useAuth();
+  const { user } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
   
   const adminWhatsApp = "+260971215524";
@@ -16,8 +16,8 @@ export const WhatsAppChat = () => {
     setIsRedirecting(true);
     
     // Create WhatsApp message with user info
-    const message = firebaseUser
-      ? `Hi, I'm ${firebaseUser.displayName || 'a student'} (${firebaseUser.email}) and I need help with my research work.`
+    const message = user
+      ? `Hi, I'm ${user.displayName || user.firstName || 'a student'} (${user.email}) and I need help with my research work.`
       : "Hi, I need help with my research work.";
     
     const encodedMessage = encodeURIComponent(message);

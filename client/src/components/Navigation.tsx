@@ -23,7 +23,6 @@ export const Navigation = () => {
     { href: '/', label: 'Home' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/materials', label: 'Materials' },
-    { href: '/firebase-demo', label: 'Firebase Demo' },
   ];
 
   const getUserInitials = (firstName?: string, lastName?: string) => {

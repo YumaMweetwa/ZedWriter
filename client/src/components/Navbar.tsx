@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut } from '../lib/auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -14,13 +13,14 @@ import {
 import { useState } from 'react';
 
 export const Navbar = () => {
-  const { user, firebaseUser } = useAuth();
+  const { user } = useAuth();
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Sign out error:', error);
     }

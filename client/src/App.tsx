@@ -12,7 +12,6 @@ import { TopicGeneratorPage } from '@/pages/TopicGeneratorPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ChatPage } from '@/pages/ChatPage';
-import { FirebaseDemo } from '@/pages/FirebaseDemo';
 import { AuthPage } from '@/pages/AuthPage';
 import { AboutPage } from '@/pages/AboutPage';
 import { TermsPage } from '@/pages/TermsPage';
@@ -51,7 +50,6 @@ function App() {
                 <Route path="/dashboard" component={DashboardPage} />
                 <Route path="/admin" component={AdminPage} />
                 <Route path="/chat" component={ChatPage} />
-                <Route path="/firebase-demo" component={FirebaseDemo} />
                 <Route path="/submit">
                   {() => <SubmissionWizard preselectedType={getPreselectedType()} />}
                 </Route>
