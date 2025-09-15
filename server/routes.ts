@@ -231,8 +231,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ws.on('message', async (message) => {
       try {
         // Validate message size (10MB limit)
-        if (message.length > 10 * 1024 * 1024) {
-          console.error('Message too large:', message.length);
+        const messageSize = Buffer.isBuffer(message) ? message.length : 
+                           message instanceof ArrayBuffer ? message.byteLength :
+                           Array.isArray(message) ? message.reduce((total, buf) => total + buf.length, 0) : 0;
+        
+        if (messageSize > 10 * 1024 * 1024) {
+          console.error('Message too large:', messageSize);
           ws.close(1009, 'Message too large');
           return;
         }
