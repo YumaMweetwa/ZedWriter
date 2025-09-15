@@ -8,7 +8,7 @@ import {
   type PricingService,
   type InsertPricingService 
 } from "@shared/types";
-import "./firebase-admin"; // Initialize Firebase Admin
+// Firebase Admin removed - using Supabase for storage
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 
@@ -392,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Material upload endpoint with Firebase Storage
+  // Material upload endpoint with local storage
   app.post('/api/materials/upload', authenticateToken, upload.single('file'), validateFileUpload, async (req, res) => {
     try {
       if (!req.file) {
@@ -409,35 +409,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required fields: program, year, and type are required' });
       }
 
-      // Upload file to Firebase Storage if available
-      let filePath = req.file.path;
-      let firebaseUrl = null;
-      
-      try {
-        // Try uploading to Firebase Storage
-        const firebaseStorage = require('./firebase-admin').storage;
-        if (firebaseStorage) {
-          const bucket = firebaseStorage.bucket();
-          const firebaseFilename = `materials/${Date.now()}-${req.file.originalname}`;
-          const file = bucket.file(firebaseFilename);
-          
-          const fs = require('fs');
-          const fileBuffer = fs.readFileSync(req.file.path);
-          
-          await file.save(fileBuffer, {
-            metadata: {
-              contentType: req.file.mimetype,
-            },
-          });
-          
-          // Get public URL
-          firebaseUrl = `https://storage.googleapis.com/${bucket.name}/${firebaseFilename}`;
-          filePath = firebaseFilename; // Store Firebase path
-        }
-      } catch (firebaseError) {
-        console.warn('Firebase upload failed, using local storage:', firebaseError);
-        // Continue with local storage as fallback
-      }
+      // Use local storage path
+      const filePath = req.file.path;
 
       // Create material with approval pending
       const material = await storage.createMaterial({
@@ -448,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type,
         fileName: req.file.originalname,
         fileSize: req.file.size,
-        filePath: firebaseUrl || filePath,
+        filePath,
         uploadedBy: req.user!.userId,
         isApproved: false,
       });
@@ -506,20 +479,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete material from database
       await storage.deleteMaterial(id);
 
-      // Try to delete from Firebase Storage if it was stored there
-      try {
-        if (material.filePath.startsWith('materials/')) {
-          const firebaseStorage = require('./firebase-admin').storage;
-          if (firebaseStorage) {
-            const bucket = firebaseStorage.bucket();
-            const file = bucket.file(material.filePath);
-            await file.delete();
-          }
-        }
-      } catch (cleanupError) {
-        console.warn('Failed to delete file from Firebase Storage:', cleanupError);
-        // Continue with database deletion even if file cleanup fails
-      }
+      // Note: File cleanup handled by local storage - files remain in uploads directory
+      // For production, consider implementing proper file cleanup logic
 
       res.json({
         message: 'Material deleted successfully'
