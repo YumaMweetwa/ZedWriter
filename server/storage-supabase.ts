@@ -17,7 +17,7 @@ import {
   type InsertPayment,
   type PricingService,
   type InsertPricingService
-} from "@shared/types";
+} from "../shared/types";
 import { db, testConnection } from "./db";
 import { schema } from "./db";
 import { eq, desc, like, and, or, count, sum } from 'drizzle-orm';
