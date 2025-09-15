@@ -17,7 +17,7 @@ import {
   type InsertPayment,
   type PricingService,
   type InsertPricingService
-} from "@shared/types";
+} from "../shared/types";
 import { db, testConnection } from "./db";
 import { schema } from "./db";
 import { eq, desc, like, and, or, count, sum } from 'drizzle-orm';
@@ -50,16 +50,6 @@ export class SupabaseStorage implements IStorage {
       return users[0] ? this.convertDates(users[0]) : undefined;
     } catch (error) {
       console.error('Error getting user by username:', error);
-      throw error;
-    }
-  }
-
-  async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    try {
-      const users = await db.select().from(schema.users).where(eq(schema.users.firebaseUid, firebaseUid));
-      return users[0] ? this.convertDates(users[0]) : undefined;
-    } catch (error) {
-      console.error('Error getting user by Firebase UID:', error);
       throw error;
     }
   }
