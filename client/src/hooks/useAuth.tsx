@@ -6,7 +6,7 @@ import { signInWithGoogle, signInWithEmail, signUpWithEmail, logout, resetPasswo
 import { InsertUser } from '@shared/types';
 
 export const useAuthActions = () => {
-  const { refreshUser } = useAuth();
+  const { refreshProfile } = useAuth();
   const { showToast, setLoading } = useApp();
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +17,7 @@ export const useAuthActions = () => {
       setLoading({ isLoading: true, title: 'Signing in...', message: 'Please wait while we sign you in with Google.' });
       
       await signInWithGoogle();
-      await refreshUser();
+      await refreshProfile();
       
       showToast({
         type: 'success',
@@ -42,7 +42,7 @@ export const useAuthActions = () => {
       setLoading({ isLoading: true, title: 'Signing in...', message: 'Please wait while we verify your credentials.' });
       
       await signInWithEmail(email, password);
-      await refreshUser();
+      await refreshProfile();
       
       showToast({
         type: 'success',
@@ -77,7 +77,7 @@ export const useAuthActions = () => {
       setLoading({ isLoading: true, title: 'Creating account...', message: 'Please wait while we create your account.' });
       
       await signUpWithEmail(email, password, userData);
-      await refreshUser();
+      await refreshProfile();
       
       showToast({
         type: 'success',
