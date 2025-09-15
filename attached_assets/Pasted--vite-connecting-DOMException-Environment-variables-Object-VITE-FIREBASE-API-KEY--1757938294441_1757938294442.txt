@@ -1,0 +1,30 @@
+[vite] connecting...
+DOMException {}
+
+Environment variables: 
+Object {VITE_FIREBASE_API_KEY: "***", VITE_FIREBASE_PROJECT_ID: "improvedzedwriter", VITE_FIREBASE_AUTH_DOMAIN: "improvedzedwriter.firebaseapp.com", VITE_FIREBASE_APP_ID: "***"}
+Initializing Firebase with config: 
+Object {apiKey: "***", projectId: "improvedzedwriter", authDomain: "improvedzedwriter.firebaseapp.com"}
+Firebase initialized successfully
+Auth state changed: SIGNED_IN 21b95a1c-c4f5-4060-b4da-040ef4fe77fe
+Auth state changed: INITIAL_SESSION 21b95a1c-c4f5-4060-b4da-040ef4fe77fe
+Error refreshing profile: 
+Object {code: "PGRST205", details: null, hint: null, message: "Could not find the table 'public.profiles' in the schema cache"}
+
+Cannot read properties of undefined (reading 'toLocaleDateString')
+Cannot read properties of undefined (reading 'toLocaleDateString')
+The above error occurred in the <DashboardPage> component:
+
+    at DashboardPage (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/src/pages/DashboardPage.tsx:42:20)
+    at Route (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=4a98faf7:323:16)
+    at Switch (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=4a98faf7:379:17)
+    at main
+    at div
+    at Router (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=4a98faf7:291:17)
+    at AuthProvider (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/src/contexts/AuthContext.tsx:30:32)
+    at AppProvider (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/src/contexts/AppContext.tsx:30:31)
+    at App (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/src/App.tsx?v=rxBpHW-MdQR3HfvlRjtNL:42:22)
+    at QueryClientProvider (https://a1b8acd3-aeb8-4d2d-8582-27051b1bc77e-00-38ecwa5i8k85n.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=4a98faf7:2805:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
