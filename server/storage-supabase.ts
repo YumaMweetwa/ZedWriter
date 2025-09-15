@@ -54,16 +54,6 @@ export class SupabaseStorage implements IStorage {
     }
   }
 
-  async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    try {
-      const users = await db.select().from(schema.users).where(eq(schema.users.firebaseUid, firebaseUid));
-      return users[0] ? this.convertDates(users[0]) : undefined;
-    } catch (error) {
-      console.error('Error getting user by Firebase UID:', error);
-      throw error;
-    }
-  }
-
   async getAllUsers(): Promise<User[]> {
     try {
       const users = await db.select().from(schema.users).orderBy(desc(schema.users.createdAt));

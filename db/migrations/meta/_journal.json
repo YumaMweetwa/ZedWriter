@@ -8,6 +8,13 @@
       "when": 1757887970963,
       "tag": "0000_shocking_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1757969555414,
+      "tag": "0001_grey_stingray",
+      "breakpoints": true
     }
   ]
 }

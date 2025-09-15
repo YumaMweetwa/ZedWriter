@@ -4,7 +4,6 @@ import { sql } from 'drizzle-orm';
 // Users table - central user management
 export const users = pgTable('users', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
-  firebaseUid: varchar('firebase_uid').unique(),
   email: varchar('email').notNull().unique(),
   firstName: varchar('first_name').notNull(),
   lastName: varchar('last_name').notNull(),

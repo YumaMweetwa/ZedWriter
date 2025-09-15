@@ -8,7 +8,6 @@ import {
   type PricingService,
   type InsertPricingService 
 } from "@shared/types";
-// Firebase Admin removed - using Supabase for storage
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
@@ -468,53 +467,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/users/firebase/:uid', authenticateToken, async (req, res) => {
-    try {
-      // Verify the authenticated user can only access their own data by Firebase UID
-      if (req.user!.uid !== req.params.uid) {
-        return res.status(403).json({ error: 'Access denied: You can only access your own user data' });
-      }
-      
-      let user = await storage.getUserByFirebaseUid(req.params.uid);
-      
-      // If user doesn't exist, auto-create them using Firebase token info
-      if (!user) {
-        console.log('Creating new user record for Firebase UID:', req.params.uid);
-        
-        const newUserData = {
-          firebaseUid: req.user!.uid,
-          email: req.user!.email || '',
-          firstName: '',
-          lastName: '',
-          role: 'student',
-          referralCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
-        };
-        
-        try {
-          user = await storage.createUser(newUserData);
-          console.log('Successfully created new user:', user.id);
-        } catch (createError) {
-          console.error('Error creating new user:', createError);
-          return res.status(500).json({ error: 'Failed to create user account' });
-        }
-      }
-      
-      res.json(user);
-    } catch (error) {
-      console.error('Error fetching user by Firebase UID:', error);
-      res.status(500).json({ error: 'Failed to fetch user' });
-    }
-  });
-
   app.post('/api/users', authenticateToken, async (req, res) => {
     try {
-      // Ensure the Firebase UID in request body matches the authenticated user
-      if (req.body.firebaseUid && req.body.firebaseUid !== req.user!.uid) {
-        return res.status(403).json({ error: 'Access denied: Cannot create user with different Firebase UID' });
-      }
-      
-      // Set the Firebase UID from the authenticated token to prevent spoofing
-      const userData = { ...req.body, firebaseUid: req.user!.uid };
+      const userData = { ...req.body };
       const user = await storage.createUser(userData);
       res.status(201).json(user);
     } catch (error) {

@@ -3,7 +3,6 @@
 
 export interface User {
   id: string;
-  firebaseUid: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -22,7 +21,6 @@ export interface User {
 }
 
 export interface InsertUser {
-  firebaseUid: string;
   email: string;
   firstName: string;
   lastName: string;
