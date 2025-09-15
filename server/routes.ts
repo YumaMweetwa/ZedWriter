@@ -11,6 +11,37 @@ import {
 // Firebase Admin removed - using Supabase for storage
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import { createClient } from '@supabase/supabase-js';
+
+// WebSocket message validation schemas
+const wsMessageSchema = z.object({
+  type: z.string(),
+  roomId: z.string().optional(),
+  userId: z.string().optional(),
+  senderId: z.string().optional(),
+  receiverId: z.string().optional(),
+  submissionId: z.string().optional(),
+  content: z.string().max(10000).optional(), // 10KB text limit
+  messageType: z.enum(['text', 'file', 'voice', 'image']).optional(),
+  timestamp: z.string().optional(),
+}).strict();
+
+const joinRoomSchema = z.object({
+  type: z.literal('join_room'),
+  roomId: z.string().min(1),
+  userId: z.string().min(1),
+}).strict();
+
+const sendMessageSchema = z.object({
+  type: z.literal('send_message'),
+  roomId: z.string().min(1),
+  senderId: z.string().min(1),
+  receiverId: z.string().min(1),
+  submissionId: z.string().optional(),
+  content: z.string().min(1).max(10000),
+  messageType: z.enum(['text', 'file', 'voice', 'image']).default('text'),
+  timestamp: z.string(),
+}).strict();
 
 // Initialize Supabase storage
 const storage = new SupabaseStorage();
@@ -63,61 +94,274 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
-  // Setup WebSocket server for real-time chat
+  // Enhanced WebSocket connection tracking with room management
+  const wsConnections = new Map<WebSocket, { userId: string; userEmail: string; rooms: Set<string> }>();
+  const roomConnections = new Map<string, Set<WebSocket>>(); // roomId -> Set of WebSocket connections
+  
+  // Helper functions for room management
+  const addConnectionToRoom = (ws: WebSocket, roomId: string) => {
+    const userInfo = wsConnections.get(ws);
+    if (!userInfo) return false;
+    
+    // Add room to user's room set
+    userInfo.rooms.add(roomId);
+    
+    // Add connection to room's connection set
+    if (!roomConnections.has(roomId)) {
+      roomConnections.set(roomId, new Set());
+    }
+    roomConnections.get(roomId)!.add(ws);
+    
+    console.log(`User ${userInfo.userId} joined room: ${roomId}`);
+    return true;
+  };
+  
+  const removeConnectionFromRoom = (ws: WebSocket, roomId: string) => {
+    const userInfo = wsConnections.get(ws);
+    if (userInfo) {
+      userInfo.rooms.delete(roomId);
+    }
+    
+    const roomConns = roomConnections.get(roomId);
+    if (roomConns) {
+      roomConns.delete(ws);
+      if (roomConns.size === 0) {
+        roomConnections.delete(roomId);
+      }
+    }
+  };
+  
+  const removeConnectionFromAllRooms = (ws: WebSocket) => {
+    const userInfo = wsConnections.get(ws);
+    if (userInfo) {
+      userInfo.rooms.forEach(roomId => {
+        removeConnectionFromRoom(ws, roomId);
+      });
+    }
+  };
+  
+  const broadcastToRoom = (roomId: string, message: object, excludeWs?: WebSocket) => {
+    const roomConns = roomConnections.get(roomId);
+    if (!roomConns) return 0;
+    
+    let sentCount = 0;
+    roomConns.forEach(ws => {
+      if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify(message));
+          sentCount++;
+        } catch (error) {
+          console.error('Error sending message to client:', error);
+          // Remove broken connection
+          removeConnectionFromAllRooms(ws);
+          wsConnections.delete(ws);
+        }
+      }
+    });
+    
+    return sentCount;
+  };
+
+  // Setup WebSocket server for real-time chat with authentication
   const wss = new WebSocketServer({ 
     server: httpServer, 
     path: '/ws',
-    verifyClient: (info: any) => {
-      // Add authentication verification here if needed
-      return true;
+    verifyClient: async (info: any) => {
+      try {
+        // Extract token from URL query or headers
+        const url = new URL(info.req.url!, `http://${info.req.headers.host}`);
+        const token = url.searchParams.get('token') || 
+                     info.req.headers.authorization?.replace('Bearer ', '');
+        
+        if (!token) {
+          console.log('WebSocket connection rejected: No authentication token provided');
+          return false;
+        }
+
+        // Verify the JWT token with Supabase
+        const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+        
+        if (!supabaseUrl || !supabaseServiceKey) {
+          console.error('WebSocket: Missing Supabase environment variables');
+          return false;
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        });
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error || !user) {
+          console.log('WebSocket connection rejected: Invalid token', error?.message);
+          return false;
+        }
+
+        // Store user info in the request for later use
+        (info.req as any).authenticatedUser = {
+          userId: user.id,
+          userEmail: user.email || 'unknown@example.com'
+        };
+
+        console.log(`WebSocket connection authenticated for user: ${user.id}`);
+        return true;
+      } catch (error) {
+        console.error('WebSocket authentication error:', error);
+        return false;
+      }
     }
   });
 
-  // WebSocket connection handling
-  wss.on('connection', (ws: WebSocket, req) => {
-    console.log('New WebSocket connection established');
+  // WebSocket connection handling with authenticated users
+  wss.on('connection', (ws: WebSocket, req: any) => {
+    const authenticatedUser = req.authenticatedUser;
+    
+    if (!authenticatedUser) {
+      console.error('WebSocket connection without authenticated user info');
+      ws.close(1008, 'Authentication failed');
+      return;
+    }
+
+    // Store the authenticated user info for this connection with empty rooms set
+    wsConnections.set(ws, { ...authenticatedUser, rooms: new Set<string>() });
+    
+    console.log(`Authenticated WebSocket connection established for user: ${authenticatedUser.userId}`);
     
     ws.on('message', async (message) => {
       try {
-        const data = JSON.parse(message.toString());
+        // Validate message size (10MB limit)
+        if (message.length > 10 * 1024 * 1024) {
+          console.error('Message too large:', message.length);
+          ws.close(1009, 'Message too large');
+          return;
+        }
+
+        const rawData = JSON.parse(message.toString());
+        
+        // Validate basic message structure
+        const validationResult = wsMessageSchema.safeParse(rawData);
+        if (!validationResult.success) {
+          console.error('Invalid message format:', validationResult.error.errors);
+          ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+          return;
+        }
+        
+        const data = validationResult.data;
+        const connectedUser = wsConnections.get(ws);
+        
+        if (!connectedUser) {
+          console.error('Message from unauthenticated WebSocket connection');
+          ws.close(1008, 'Authentication required');
+          return;
+        }
         
         switch (data.type) {
-          case 'join_room':
-            // Handle joining a chat room
-            console.log(`User joined room: ${data.roomId}`);
+          case 'join':
+            // Join default user room for backwards compatibility
+            const defaultRoomId = `user_${connectedUser.userId}`;
+            addConnectionToRoom(ws, defaultRoomId);
             break;
             
+          case 'join_room':
+            // Validate join room message
+            const joinValidation = joinRoomSchema.safeParse(data);
+            if (!joinValidation.success) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid join_room format' }));
+              return;
+            }
+            
+            // Security check: ensure user can only join as themselves
+            if (joinValidation.data.userId !== connectedUser.userId) {
+              console.error(`User ${connectedUser.userId} attempted to join room as ${joinValidation.data.userId}`);
+              ws.close(1008, 'Authentication violation');
+              return;
+            }
+            
+            // Validate room access permissions (basic room name validation for now)
+            const roomId = joinValidation.data.roomId;
+            if (!roomId.match(/^[a-zA-Z0-9_-]+$/)) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid room ID format' }));
+              return;
+            }
+            
+            addConnectionToRoom(ws, roomId);
+            ws.send(JSON.stringify({ type: 'room_joined', roomId }));
+            break;
+            
+          case 'leave_room':
+            if (data.roomId) {
+              removeConnectionFromRoom(ws, data.roomId);
+              ws.send(JSON.stringify({ type: 'room_left', roomId: data.roomId }));
+            }
+            break;
+            
+          case 'chat_message':
           case 'send_message':
-            // Handle sending a message
-            console.log(`Message sent to room ${data.roomId}: ${data.content}`);
-            // Broadcast to other clients in the same room
-            wss.clients.forEach((client) => {
-              if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'new_message',
-                  roomId: data.roomId,
-                  message: data.content,
-                  senderId: data.senderId,
-                  timestamp: new Date().toISOString()
-                }));
-              }
-            });
+            // Validate send message format
+            const msgValidation = sendMessageSchema.safeParse(data);
+            if (!msgValidation.success) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+              return;
+            }
+            
+            const msgData = msgValidation.data;
+            
+            // Security check: ensure sender ID matches authenticated user
+            if (msgData.senderId !== connectedUser.userId) {
+              console.error(`User ${connectedUser.userId} attempted to send message as ${msgData.senderId}`);
+              ws.close(1008, 'Authentication violation');
+              return;
+            }
+            
+            // Verify user is in the target room
+            if (!connectedUser.rooms.has(msgData.roomId)) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Not a member of target room' }));
+              return;
+            }
+            
+            console.log(`Message sent by user ${connectedUser.userId} to room ${msgData.roomId}`);
+            
+            // FIXED: Only broadcast to clients in the SAME ROOM (not all clients)
+            const sentCount = broadcastToRoom(msgData.roomId, {
+              type: 'new_message',
+              roomId: msgData.roomId,
+              message: msgData.content,
+              senderId: connectedUser.userId, // Use server-verified user ID
+              senderEmail: connectedUser.userEmail,
+              receiverId: msgData.receiverId,
+              submissionId: msgData.submissionId,
+              messageType: msgData.messageType,
+              timestamp: new Date().toISOString()
+            }, ws); // Exclude sender from broadcast
+            
+            // Send confirmation to sender
+            ws.send(JSON.stringify({ 
+              type: 'message_sent', 
+              roomId: msgData.roomId, 
+              timestamp: new Date().toISOString(),
+              recipients: sentCount
+            }));
             break;
             
           default:
             console.log('Unknown message type:', data.type);
+            ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
         }
       } catch (error) {
         console.error('WebSocket message error:', error);
+        ws.send(JSON.stringify({ type: 'error', message: 'Message processing failed' }));
       }
     });
 
     ws.on('close', () => {
-      console.log('WebSocket connection closed');
+      wsConnections.delete(ws);
+      console.log(`WebSocket connection closed for user: ${authenticatedUser.userId}`);
     });
 
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
+      wsConnections.delete(ws);
     });
   });
 
