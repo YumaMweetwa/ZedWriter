@@ -78,66 +78,72 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      try {
-        let profileData = await getUserProfile(authUser.id);
-        
-        // If no profile exists, create one automatically for new users
-        if (!profileData) {
-          console.log('Creating new user profile for:', authUser.id);
-          try {
-            // Use the correct createUserProfile function that calls the right endpoint
-            profileData = await createUserProfile({
-              email: authUser.email || '',
-              first_name: authUser.user_metadata?.first_name,
-              last_name: authUser.user_metadata?.last_name,
-            });
-            console.log('Created user profile successfully');
-          } catch (createError) {
-            console.error('Failed to create user profile:', createError);
-            // Continue with auth user data even if profile creation fails
+    try {
+      setLoading(true);
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (authUser) {
+        try {
+          let profileData = await getUserProfile(authUser.id);
+          
+          // If no profile exists, create one automatically for new users
+          if (!profileData) {
+            console.log('Creating new user profile for:', authUser.id);
+            try {
+              // Use the correct createUserProfile function that calls the right endpoint
+              profileData = await createUserProfile({
+                email: authUser.email || '',
+                first_name: authUser.user_metadata?.first_name || 'User',
+                last_name: authUser.user_metadata?.last_name || '',
+              });
+              console.log('Created user profile successfully');
+            } catch (createError) {
+              console.error('Failed to create user profile:', createError);
+              // Continue with auth user data even if profile creation fails
+            }
           }
+          
+          setProfile(profileData);
+          
+          // Create combined user object
+          const combinedUser: CombinedUser = {
+            id: authUser.id,
+            email: authUser.email || '',
+            firstName: profileData?.first_name || authUser.user_metadata?.first_name || 'User',
+            lastName: profileData?.last_name || authUser.user_metadata?.last_name || '',
+            phone: profileData?.phone || undefined,
+            school: profileData?.school || undefined,
+            studentId: profileData?.student_id || undefined,
+            role: profileData?.role || 'student',
+            profilePicture: profileData?.profile_picture || undefined,
+            referralCode: profileData?.referral_code || undefined,
+            referralPoints: profileData?.referral_points || 0,
+            totalPaid: profileData?.total_paid || 0,
+            totalOwed: profileData?.total_owed || 0,
+            isActive: profileData?.is_active ?? true,
+            createdAt: profileData?.created_at || authUser.created_at,
+            updatedAt: profileData?.updated_at || undefined,
+            isAdmin: profileData?.role === 'admin',
+            // Additional properties for compatibility
+            displayName: profileData?.first_name && profileData?.last_name 
+              ? `${profileData.first_name} ${profileData.last_name}` 
+              : authUser.user_metadata?.full_name || undefined,
+            points: profileData?.referral_points || 0,
+            avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
+          };
+          
+          setUser(combinedUser);
+        } catch (error) {
+          console.error('Error refreshing profile:', error);
+          setProfile(null);
+          setUser(null);
         }
-        
-        setProfile(profileData);
-        
-        // Create combined user object
-        const combinedUser: CombinedUser = {
-          id: authUser.id,
-          email: authUser.email || '',
-          firstName: profileData?.first_name || '',
-          lastName: profileData?.last_name || '',
-          phone: profileData?.phone || undefined,
-          school: profileData?.school || undefined,
-          studentId: profileData?.student_id || undefined,
-          role: profileData?.role || 'student',
-          profilePicture: profileData?.profile_picture || undefined,
-          referralCode: profileData?.referral_code || undefined,
-          referralPoints: profileData?.referral_points || 0,
-          totalPaid: profileData?.total_paid || 0,
-          totalOwed: profileData?.total_owed || 0,
-          isActive: profileData?.is_active ?? true,
-          createdAt: profileData?.created_at || authUser.created_at,
-          updatedAt: profileData?.updated_at || undefined,
-          isAdmin: profileData?.role === 'admin',
-          // Additional properties for compatibility
-          displayName: profileData?.first_name && profileData?.last_name 
-            ? `${profileData.first_name} ${profileData.last_name}` 
-            : undefined,
-          points: profileData?.referral_points || 0,
-          avatarUrl: profileData?.profile_picture || undefined
-        };
-        
-        setUser(combinedUser);
-      } catch (error) {
-        console.error('Error refreshing profile:', error);
+      } else {
         setProfile(null);
         setUser(null);
       }
-    } else {
-      setProfile(null);
-      setUser(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,27 +158,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       setSession(session);
       if (session?.user) {
         refreshProfile();
       } else {
         setUser(null);
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.id);
         
         setSession(session);
         
         if (session?.user) {
-          await refreshProfile();
+          // Only refresh profile if it's not already set or if the user ID changed
+          if (!user || user.id !== session.user.id) {
+            await refreshProfile();
+          }
         } else {
           setProfile(null);
           setUser(null);
@@ -182,15 +197,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Update profile when auth state changes
-  useEffect(() => {
-    if (session?.user && !loading) {
-      refreshProfile();
-    }
-  }, [session?.user?.id]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [user?.id]); // Only re-run if user ID changes
 
   const value = {
     user,
