@@ -5,6 +5,7 @@ import { Navigation } from '@/components/Navigation';
 import { Footer } from '@/components/Footer';
 import { ToastSystem } from '@/components/ToastSystem';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { AuthDiagnostic } from '@/components/AuthDiagnostic';
 import { HomePage } from '@/pages/HomePage';
 import { PricingPage } from '@/pages/PricingPage';
 import { MaterialsPage } from '@/pages/MaterialsPage';
@@ -84,6 +85,7 @@ function App() {
             <Footer />
             <ToastSystem />
             <LoadingOverlay />
+            {import.meta.env.DEV && <AuthDiagnostic />}
           </div>
         </Router>
       </AuthProvider>

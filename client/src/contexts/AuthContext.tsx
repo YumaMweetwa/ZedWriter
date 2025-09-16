@@ -83,8 +83,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (authUser) {
+        let profileData = null;
+        
         try {
-          let profileData = await getUserProfile(authUser.id);
+          profileData = await getUserProfile(authUser.id);
           
           // If no profile exists, create one automatically for new users
           if (!profileData) {
@@ -99,49 +101,80 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               console.log('Created user profile successfully');
             } catch (createError) {
               console.error('Failed to create user profile:', createError);
-              // Continue with auth user data even if profile creation fails
+              // Continue with null profileData but still set user from auth data
             }
           }
-          
-          setProfile(profileData);
-          
-          // Create combined user object
-          const combinedUser: CombinedUser = {
-            id: authUser.id,
-            email: authUser.email || '',
-            firstName: profileData?.first_name || authUser.user_metadata?.first_name || 'User',
-            lastName: profileData?.last_name || authUser.user_metadata?.last_name || '',
-            phone: profileData?.phone || undefined,
-            school: profileData?.school || undefined,
-            studentId: profileData?.student_id || undefined,
-            role: profileData?.role || 'student',
-            profilePicture: profileData?.profile_picture || undefined,
-            referralCode: profileData?.referral_code || undefined,
-            referralPoints: profileData?.referral_points || 0,
-            totalPaid: profileData?.total_paid || 0,
-            totalOwed: profileData?.total_owed || 0,
-            isActive: profileData?.is_active ?? true,
-            createdAt: profileData?.created_at || authUser.created_at,
-            updatedAt: profileData?.updated_at || undefined,
-            isAdmin: profileData?.role === 'admin',
-            // Additional properties for compatibility
-            displayName: profileData?.first_name && profileData?.last_name 
-              ? `${profileData.first_name} ${profileData.last_name}` 
-              : authUser.user_metadata?.full_name || undefined,
-            points: profileData?.referral_points || 0,
-            avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
-          };
-          
-          setUser(combinedUser);
-        } catch (error) {
-          console.error('Error refreshing profile:', error);
-          setProfile(null);
-          setUser(null);
+        } catch (profileError) {
+          console.error('Error getting/creating profile:', profileError);
+          // Continue with null profileData but still set user from auth data
         }
+        
+        setProfile(profileData);
+        
+        // CRITICAL FIX: Always create user object from auth data, regardless of profile success/failure
+        const combinedUser: CombinedUser = {
+          id: authUser.id,
+          email: authUser.email || '',
+          firstName: profileData?.first_name || authUser.user_metadata?.first_name || 'User',
+          lastName: profileData?.last_name || authUser.user_metadata?.last_name || '',
+          phone: profileData?.phone || undefined,
+          school: profileData?.school || undefined,
+          studentId: profileData?.student_id || undefined,
+          role: profileData?.role || 'student',
+          profilePicture: profileData?.profile_picture || undefined,
+          referralCode: profileData?.referral_code || undefined,
+          referralPoints: profileData?.referral_points || 0,
+          totalPaid: profileData?.total_paid || 0,
+          totalOwed: profileData?.total_owed || 0,
+          isActive: profileData?.is_active ?? true,
+          createdAt: profileData?.created_at || authUser.created_at,
+          updatedAt: profileData?.updated_at || undefined,
+          isAdmin: profileData?.role === 'admin',
+          // Additional properties for compatibility
+          displayName: profileData?.first_name && profileData?.last_name 
+            ? `${profileData.first_name} ${profileData.last_name}` 
+            : authUser.user_metadata?.full_name || 'User',
+          points: profileData?.referral_points || 0,
+          avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
+        };
+        
+        console.log('Setting user object in AuthContext:', combinedUser.id, combinedUser.email);
+        setUser(combinedUser);
       } else {
+        console.log('No authenticated user found, clearing state');
         setProfile(null);
         setUser(null);
       }
+    } catch (error) {
+      console.error('Critical error in refreshProfile:', error);
+      // Even on critical error, try to get basic auth user info
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          console.log('Setting fallback user object from auth data');
+          const fallbackUser: CombinedUser = {
+            id: authUser.id,
+            email: authUser.email || '',
+            firstName: authUser.user_metadata?.first_name || 'User',
+            lastName: authUser.user_metadata?.last_name || '',
+            role: 'student',
+            isActive: true,
+            createdAt: authUser.created_at,
+            displayName: authUser.user_metadata?.full_name || 'User',
+            referralPoints: 0,
+            totalPaid: 0,
+            totalOwed: 0,
+            points: 0
+          };
+          setUser(fallbackUser);
+        } else {
+          setUser(null);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback auth check also failed:', fallbackError);
+        setUser(null);
+      }
+      setProfile(null);
     } finally {
       setLoading(false);
     }
@@ -180,15 +213,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (!mounted) return;
         
         console.log('Auth state changed:', event, session?.user?.id);
+        console.log('Current user object:', user?.id, 'New session user:', session?.user?.id);
         
         setSession(session);
         
         if (session?.user) {
-          // Only refresh profile if it's not already set or if the user ID changed
-          if (!user || user.id !== session.user.id) {
+          // CRITICAL FIX: Always refresh profile for SIGNED_IN events to ensure UI updates
+          if (!user || user.id !== session.user.id || event === 'SIGNED_IN') {
+            console.log('Calling refreshProfile for auth state change');
             await refreshProfile();
+          } else {
+            console.log('Skipping refreshProfile - user already set and same ID');
           }
         } else {
+          console.log('No session user, clearing state');
           setProfile(null);
           setUser(null);
         }
