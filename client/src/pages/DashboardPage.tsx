@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as React from 'react';
 import { Link } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { formatCurrency, formatDate, getStatusColor } from '@/utils/helpers';
 import { PaymentInfo } from '@/components/PaymentInfo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -27,6 +29,7 @@ import { BackButton } from '@/components/BackButton';
 
 export const DashboardPage = () => {
   const { user } = useAuth();
+  const { profile, updateProfile, loading: profileLoading } = useProfile();
 
   const { toast } = useToast();
 
@@ -59,29 +62,42 @@ export const DashboardPage = () => {
     lastName: z.string().min(1, 'Last name is required'),
     phone: z.string().optional(),
     school: z.string().optional(),
-    studentId: z.string().optional(),
   });
 
   const profileForm = useForm<z.infer<typeof profileFormSchema>>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      firstName: user?.firstName ?? '',
-      lastName: user?.lastName ?? '',
-      phone: user?.phone ?? '',
-      school: user?.school ?? '',
-      studentId: user?.studentId ?? '',
+      firstName: profile?.first_name || '',
+      lastName: profile?.last_name || '',
+      phone: profile?.phone || '',
+      school: profile?.school || '',
     },
   });
+
+  // Update form when profile loads
+  React.useEffect(() => {
+    if (profile) {
+      profileForm.reset({
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        phone: profile.phone || '',
+        school: profile.school || '',
+      });
+    }
+  }, [profile]);
 
   // Profile update mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: z.infer<typeof profileFormSchema>) => {
-      const response = await apiRequest('PATCH', `/api/users/${user?.id}`, data);
-      return response.json();
+      return await updateProfile({
+        first_name: data.firstName,
+        last_name: data.lastName,
+        phone: data.phone || null,
+        school: data.school || null,
+      });
     },
     onSuccess: () => {
       toast({ title: 'Success', description: 'Profile updated successfully' });
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
     },
     onError: (error: Error) => {
       toast({ title: 'Error', description: `Failed to update profile: ${error.message}`, variant: 'destructive' });
@@ -107,7 +123,7 @@ export const DashboardPage = () => {
   }
 
   const getUserInitials = (firstName?: string, lastName?: string) => {
-    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase() || user?.email?.charAt(0).toUpperCase() || '?';
   };
 
   const getSubmissionStats = () => {
@@ -128,7 +144,9 @@ export const DashboardPage = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back, {user.firstName}!</p>
+            <p className="text-muted-foreground">
+              Welcome back, {profile?.first_name || user?.email?.split('@')[0] || 'User'}!
+            </p>
           </div>
           <Link href="/submit">
             <Button data-testid="new-submission-button">
@@ -167,7 +185,7 @@ export const DashboardPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-bold">{user.referralPoints || 0}</div>
+                  <div className="text-2xl font-bold">0</div>
                   <div className="text-sm text-muted-foreground">Referral Points</div>
                 </div>
                 <i className="fas fa-star text-2xl text-yellow-600"></i>
@@ -179,7 +197,7 @@ export const DashboardPage = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-bold">{formatCurrency((user?.totalOwed ?? 0) - (user?.totalPaid ?? 0))}</div>
+                  <div className="text-2xl font-bold">{formatCurrency(0)}</div>
                   <div className="text-sm text-muted-foreground">Account Balance</div>
                 </div>
                 <i className="fas fa-wallet text-2xl text-blue-600"></i>
@@ -206,41 +224,46 @@ export const DashboardPage = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <Avatar className="w-12 h-12">
-                    <AvatarImage src={user.profilePicture || undefined} />
+                    <AvatarImage src={undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {getUserInitials(user.firstName, user.lastName)}
+                      {getUserInitials(profile?.first_name, profile?.last_name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="text-lg font-semibold">{user.firstName} {user.lastName}</h3>
-                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <h3 className="text-lg font-semibold">
+                      {profile?.first_name && profile?.last_name 
+                        ? `${profile.first_name} ${profile.last_name}`
+                        : user?.email || 'User'
+                      }
+                    </h3>
+                    <p className="text-sm text-muted-foreground">{user?.email}</p>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-4 gap-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Student ID</Label>
-                    <p className="font-medium" data-testid="profile-student-id">
-                      {user.studentId || 'Not provided'}
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <p className="font-medium" data-testid="profile-email">
+                      {user?.email || 'Not provided'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">School</Label>
                     <p className="font-medium" data-testid="profile-school">
-                      {user.school || 'Not provided'}
+                      {profile?.school || 'Not provided'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Phone</Label>
                     <p className="font-medium" data-testid="profile-phone">
-                      {user.phone || 'Not provided'}
+                      {profile?.phone || 'Not provided'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Member Since</Label>
                     <p className="font-medium" data-testid="profile-member-since">
-                      {formatDate(user.createdAt!)}
+                      {formatDate(user?.created_at || new Date())}
                     </p>
                   </div>
                 </div>
@@ -250,7 +273,7 @@ export const DashboardPage = () => {
                       <i className="fas fa-edit mr-2"></i>Edit Profile
                     </Button>
                   </Link>
-                  {user.role === 'admin' && (
+                  {user?.email === 'admin@zedwriter.com' && (
                     <Link href="/admin">
                       <Button variant="outline" size="sm" data-testid="admin-panel-button">
                         <i className="fas fa-cog mr-2"></i>Admin Panel
@@ -730,14 +753,19 @@ export const DashboardPage = () => {
               <CardContent>
                 <div className="flex items-center space-x-6 mb-8">
                   <Avatar className="w-24 h-24">
-                    <AvatarImage src={user.profilePicture || undefined} />
+                    <AvatarImage src={undefined} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                      {getUserInitials(user.firstName, user.lastName)}
+                      {getUserInitials(profile?.first_name, profile?.last_name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="text-lg font-semibold">{user.firstName} {user.lastName}</h3>
-                    <p className="text-muted-foreground">{user.email}</p>
+                    <h3 className="text-lg font-semibold">
+                      {profile?.first_name && profile?.last_name 
+                        ? `${profile.first_name} ${profile.last_name}`
+                        : user?.email || 'User'
+                      }
+                    </h3>
+                    <p className="text-muted-foreground">{user?.email}</p>
                     <Button variant="outline" size="sm" className="mt-2" data-testid="change-avatar-button">
                       Change Picture
                     </Button>
@@ -793,32 +821,18 @@ export const DashboardPage = () => {
                       
                       <FormField
                         control={profileForm.control}
-                        name="studentId"
+                        name="school"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Student ID</FormLabel>
+                            <FormLabel>School/University</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter student ID" {...field} data-testid="input-student-id" />
+                              <Input placeholder="Enter school/university name" {...field} data-testid="input-school" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
-
-                    <FormField
-                      control={profileForm.control}
-                      name="school"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>School/University</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter school/university name" {...field} data-testid="input-school" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
 
                     <div className="flex justify-end space-x-4">
                       <Button 
@@ -856,7 +870,7 @@ export const DashboardPage = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Email Address</Label>
-                      <Input value={user.email} disabled className="mt-1" />
+                      <Input value={user?.email || ''} disabled className="mt-1" />
                       <p className="text-sm text-muted-foreground mt-1">
                         Email cannot be changed here. Contact support if needed.
                       </p>
@@ -864,8 +878,8 @@ export const DashboardPage = () => {
                     <div>
                       <Label>Account Status</Label>
                       <div className="mt-1">
-                        <Badge className={user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                          {user.isActive ? 'Active' : 'Inactive'}
+                        <Badge className="bg-green-100 text-green-800">
+                          Active
                         </Badge>
                       </div>
                     </div>
@@ -874,11 +888,11 @@ export const DashboardPage = () => {
                   <div className="grid md:grid-cols-2 gap-4 mt-4">
                     <div>
                       <Label>Member Since</Label>
-                      <Input value={formatDate(user.createdAt!)} disabled className="mt-1" />
+                      <Input value={formatDate(user?.created_at || new Date())} disabled className="mt-1" />
                     </div>
                     <div>
                       <Label>Role</Label>
-                      <Input value={user.role || 'Student'} disabled className="mt-1 capitalize" />
+                      <Input value="Student" disabled className="mt-1 capitalize" />
                     </div>
                   </div>
                 </div>

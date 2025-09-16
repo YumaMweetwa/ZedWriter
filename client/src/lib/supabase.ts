@@ -17,7 +17,7 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true  // important for magic link / OAuth
     },
     global: {
       headers: {
@@ -68,31 +68,57 @@ export const getUserProfile = async (userId?: string) => {
 
 // Ensure a profile row exists (create it on first login)
 export const ensureProfile = async (userId: string) => {
-  const { data, error, status } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single()
-
-  // 406 = no rows (PostgREST), or use error?.code === 'PGRST116' depending on SDK
-  if (status === 406 || error?.code === 'PGRST116') {
-    const { error: insertErr } = await supabase
+  try {
+    console.log('🔍 Looking for profile:', userId);
+    
+    // First try to get existing profile
+    const { data: existingProfile, error: selectError } = await supabase
       .from('profiles')
-      .insert({ id: userId })
-    if (insertErr) {
-      console.error('insert profile error', insertErr)
-      return null
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (selectError) {
+      console.log('⚠️  Profile select error:', selectError.message);
+      
+      // If it's just "not found", try to create the profile
+      if (selectError.code === 'PGRST116') {
+        console.log('📝 Creating new profile for user:', userId);
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: userId,
+            first_name: '',
+            last_name: '',
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('❌ Failed to create profile:', insertError.message);
+          // Return null profile instead of throwing
+          return null;
+        }
+
+        console.log('✅ Created new profile:', newProfile);
+        return newProfile;
+      } else {
+        console.error('❌ Database error accessing profiles:', selectError.message);
+        // Return null profile instead of throwing
+        return null;
+      }
     }
-    return { id: userId }
-  }
 
-  if (error) {
-    console.error('select profile error', error) // 401 here means missing RLS policy
-    return null
+    console.log('✅ Found existing profile:', existingProfile);
+    return existingProfile;
+  } catch (error) {
+    console.error('💥 Critical error in ensureProfile:', error);
+    // Return null instead of throwing to prevent auth from failing
+    return null;
   }
-
-  return data
-}
+};
 
 // SECURE: Helper to create user profile via secure server endpoint
 export const createUserProfile = async (userData: {

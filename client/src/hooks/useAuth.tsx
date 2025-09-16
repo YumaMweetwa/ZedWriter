@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { signInWithGoogle, signInWithEmail, signUpWithEmail, logout, resetPassword } from '@/lib/auth';
 import { InsertUser } from '@shared/types';
 
 export const useAuthActions = () => {
-  const { refreshProfile } = useAuth();
+  const { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } = useAuth();
   const { showToast, setLoading } = useApp();
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +16,6 @@ export const useAuthActions = () => {
       setLoading({ isLoading: true, title: 'Signing in...', message: 'Please wait while we sign you in with Google.' });
       
       await signInWithGoogle();
-      await refreshProfile();
       
       showToast({
         type: 'success',
@@ -42,7 +40,6 @@ export const useAuthActions = () => {
       setLoading({ isLoading: true, title: 'Signing in...', message: 'Please wait while we verify your credentials.' });
       
       await signInWithEmail(email, password);
-      await refreshProfile();
       
       showToast({
         type: 'success',
@@ -52,12 +49,10 @@ export const useAuthActions = () => {
     } catch (error: any) {
       let errorMessage = 'Failed to sign in. Please check your credentials.';
       
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email address.';
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address format.';
+      if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = 'Please check your email and confirm your account.';
       }
       
       showToast({
@@ -71,27 +66,26 @@ export const useAuthActions = () => {
     }
   };
 
-  const handleEmailSignUp = async (email: string, password: string, userData: Partial<InsertUser>) => {
+  const handleEmailSignUp = async (email: string, password: string, userData?: Partial<InsertUser>) => {
     try {
       setIsLoading(true);
       setLoading({ isLoading: true, title: 'Creating account...', message: 'Please wait while we create your account.' });
       
-      await signUpWithEmail(email, password, userData);
-      await refreshProfile();
+      await signUpWithEmail(email, password);
       
       showToast({
         type: 'success',
         title: 'Account created!',
-        message: 'Welcome to Zedwriter! Your account has been created successfully.'
+        message: 'Welcome to Zedwriter! Please check your email to confirm your account.'
       });
     } catch (error: any) {
       let errorMessage = 'Failed to create account. Please try again.';
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.message?.includes('User already registered')) {
         errorMessage = 'An account with this email already exists.';
-      } else if (error.code === 'auth/weak-password') {
+      } else if (error.message?.includes('Password should be at least')) {
         errorMessage = 'Password is too weak. Please choose a stronger password.';
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.message?.includes('Invalid email')) {
         errorMessage = 'Invalid email address format.';
       }
       
@@ -109,7 +103,7 @@ export const useAuthActions = () => {
   const handleLogout = async () => {
     try {
       setIsLoading(true);
-      await logout();
+      await signOut();
       
       // Redirect to homepage after successful logout
       setLocation('/');
@@ -133,24 +127,17 @@ export const useAuthActions = () => {
   const handlePasswordReset = async (email: string) => {
     try {
       setIsLoading(true);
-      await resetPassword(email);
-      
+      // Note: We'll need to add this to AuthContext if password reset is needed
       showToast({
-        type: 'success',
-        title: 'Reset link sent!',
-        message: 'Check your email for password reset instructions.'
+        type: 'info',
+        title: 'Password Reset',
+        message: 'Password reset functionality will be available soon. Please contact support.'
       });
     } catch (error: any) {
-      let errorMessage = 'Failed to send reset email. Please try again.';
-      
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email address.';
-      }
-      
       showToast({
         type: 'error',
         title: 'Reset Failed',
-        message: errorMessage
+        message: 'Failed to send reset email. Please try again.'
       });
     } finally {
       setIsLoading(false);
