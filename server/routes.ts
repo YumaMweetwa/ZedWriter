@@ -724,7 +724,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(announcements);
     } catch (error) {
       console.error('Error fetching announcements:', error);
-      res.status(500).json({ error: 'Failed to fetch announcements' });
+      // Return empty array when database is unavailable
+      res.json([]);
     }
   });
 

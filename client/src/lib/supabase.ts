@@ -5,22 +5,27 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABA
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
+  console.error('Missing Supabase environment variables. Using fallback values for development.')
+  console.error('Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
 }
 
 // Create a single supabase client for interacting with your database
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'zedwriter-app'
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co', 
+  supabaseAnonKey || 'placeholder-key', 
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'zedwriter-app'
+      }
     }
   }
-})
+)
 
 // Auth helpers
 export const auth = supabase.auth
@@ -38,13 +43,13 @@ export const getCurrentUser = async () => {
   return user
 }
 
-// Helper to get user profile
+// Helper to get user profile (use users table instead of profiles)
 export const getUserProfile = async (userId?: string) => {
   const uid = userId || (await getCurrentUser())?.id
   if (!uid) return null
   
   const { data, error } = await supabase
-    .from('profiles')
+    .from('users')
     .select('*')
     .eq('id', uid)
     .single()

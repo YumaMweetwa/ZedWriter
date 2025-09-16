@@ -2,18 +2,24 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { supabase, getUserProfile } from '@/lib/supabase';
 
-// Profile type from our database
-interface Profile {
+// User profile type from our backend users table
+interface UserProfile {
   id: string;
   email: string | null;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
-  university: string | null;
-  avatar_url: string | null;
-  is_admin: boolean;
+  school: string | null;
+  student_id: string | null;
+  role: string;
+  profile_picture: string | null;
   referral_code: string | null;
-  referred_by: string | null;
+  referral_points: number | null;
+  total_paid: number | null;
+  total_owed: number | null;
+  is_active: boolean;
   created_at: string;
+  updated_at: string | null;
 }
 
 // Combined user type that matches what components expect
@@ -44,7 +50,7 @@ interface CombinedUser {
 
 interface AuthContextType {
   user: CombinedUser | null;
-  profile: Profile | null;
+  profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
@@ -67,7 +73,7 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<CombinedUser | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -82,24 +88,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const combinedUser: CombinedUser = {
           id: authUser.id,
           email: authUser.email || '',
-          firstName: profileData?.full_name?.split(' ')[0] || '',
-          lastName: profileData?.full_name?.split(' ').slice(1).join(' ') || '',
+          firstName: profileData?.first_name || '',
+          lastName: profileData?.last_name || '',
           phone: profileData?.phone || undefined,
-          school: profileData?.university || undefined,
-          studentId: undefined, // Not in profiles table
-          role: profileData?.is_admin ? 'admin' : 'student',
-          profilePicture: profileData?.avatar_url || undefined,
+          school: profileData?.school || undefined,
+          studentId: profileData?.student_id || undefined,
+          role: profileData?.role || 'student',
+          profilePicture: profileData?.profile_picture || undefined,
           referralCode: profileData?.referral_code || undefined,
-          referralPoints: 0, // Would need to calculate from referral_rewards table
-          totalPaid: 0, // Would need to calculate from payments table
-          totalOwed: 0, // Would need to calculate from submissions table
-          isActive: true,
+          referralPoints: profileData?.referral_points || 0,
+          totalPaid: profileData?.total_paid || 0,
+          totalOwed: profileData?.total_owed || 0,
+          isActive: profileData?.is_active ?? true,
           createdAt: profileData?.created_at || authUser.created_at,
-          isAdmin: profileData?.is_admin || false,
+          updatedAt: profileData?.updated_at || undefined,
+          isAdmin: profileData?.role === 'admin',
           // Additional properties for compatibility
-          displayName: profileData?.full_name || undefined,
-          points: 0, // Same as referralPoints
-          avatarUrl: profileData?.avatar_url || undefined
+          displayName: profileData?.first_name && profileData?.last_name 
+            ? `${profileData.first_name} ${profileData.last_name}` 
+            : undefined,
+          points: profileData?.referral_points || 0,
+          avatarUrl: profileData?.profile_picture || undefined
         };
         
         setUser(combinedUser);

@@ -89,7 +89,8 @@ export const EmailPasswordSignIn = ({ onSuccess }: EmailPasswordSignInProps) => 
         password: data.password,
         options: {
           data: {
-            full_name: data.fullName,
+            first_name: data.fullName.split(' ')[0] || '',
+            last_name: data.fullName.split(' ').slice(1).join(' ') || '',
           }
         }
       });

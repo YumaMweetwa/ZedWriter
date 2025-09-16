@@ -29,9 +29,10 @@ export const signUpWithEmail = async (email: string, password: string, userData:
     password,
     options: {
       data: {
-        full_name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+        first_name: userData.firstName,
+        last_name: userData.lastName,
         phone: userData.phone,
-        university: userData.school,
+        school: userData.school,
       }
     }
   });

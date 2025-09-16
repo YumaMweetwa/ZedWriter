@@ -27,6 +27,7 @@ export async function testConnection() {
     return true;
   } catch (error) {
     console.error('❌ Supabase database connection failed:', error);
+    console.log('⚠️  Application will continue without database connectivity');
     return false;
   }
 }
