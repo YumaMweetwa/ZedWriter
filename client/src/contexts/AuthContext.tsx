@@ -78,9 +78,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
+    console.log('🔍 STARTING refreshProfile execution...');
     try {
       setLoading(true);
+      console.log('🔍 Getting auth user from Supabase...');
       const { data: { user: authUser } } = await supabase.auth.getUser();
+      console.log('🔍 Auth user result:', authUser ? 'Found user' : 'No user', authUser?.id);
       
       if (authUser) {
         let profileData = null;
