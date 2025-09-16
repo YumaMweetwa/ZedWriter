@@ -107,7 +107,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 async function getUserProfile(userId: string) {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('id', userId)
       .single();
