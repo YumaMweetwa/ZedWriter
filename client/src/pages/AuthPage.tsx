@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { EmailPasswordSignIn } from '@/components/EmailPasswordSignIn';
-import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,45 +57,6 @@ export const AuthPage = () => {
         <div className="space-y-4">
           {/* Email/Password Authentication */}
           <EmailPasswordSignIn onSuccess={handleAuthSuccess} />
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          {/* Google Sign In */}
-          <GoogleSignInButton onSuccess={handleAuthSuccess} />
-
-          {/* Guest Continue - Development Only */}
-          {import.meta.env.DEV && (
-            <>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <Separator className="w-full" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Development
-                  </span>
-                </div>
-              </div>
-
-              <Button 
-                onClick={handleGuestContinue}
-                variant="outline"
-                className="w-full"
-                data-testid="button-continue-guest"
-              >
-                Continue as Guest
-              </Button>
-            </>
-          )}
         </div>
 
         <div className="text-center text-sm">

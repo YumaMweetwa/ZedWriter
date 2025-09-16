@@ -1,17 +1,7 @@
 import { supabase } from './supabase';
 import { InsertUser } from '@shared/types';
 
-export const signInWithGoogle = async () => {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`
-    }
-  });
 
-  if (error) throw error;
-  return data;
-};
 
 export const signInWithEmail = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
