@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
-import { supabase, getUserProfile } from '@/lib/supabase';
+import { supabase, getUserProfile, createUserProfile } from '@/lib/supabase';
 
 // User profile type from our backend users table
 interface UserProfile {
@@ -81,7 +81,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
       try {
-        const profileData = await getUserProfile(authUser.id);
+        let profileData = await getUserProfile(authUser.id);
+        
+        // If no profile exists, create one automatically for new users
+        if (!profileData) {
+          console.log('Creating new user profile for:', authUser.id);
+          try {
+            // Call server endpoint to create profile securely
+            const response = await fetch('/api/users/profile', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+              },
+              body: JSON.stringify({
+                first_name: authUser.user_metadata?.first_name,
+                last_name: authUser.user_metadata?.last_name,
+              })
+            });
+            if (response.ok) {
+              profileData = await response.json();
+              console.log('Created user profile successfully');
+            }
+          } catch (createError) {
+            console.error('Failed to create user profile:', createError);
+            // Continue with auth user data even if profile creation fails
+          }
+        }
+        
         setProfile(profileData);
         
         // Create combined user object

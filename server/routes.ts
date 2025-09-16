@@ -161,54 +161,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return sentCount;
   };
 
+  // Helper function to validate room access authorization
+  const validateRoomAccess = (userId: string, roomId: string): boolean => {
+    // Allow access to user's own room
+    if (roomId === `user_${userId}`) {
+      return true;
+    }
+    
+    // Allow admin users to access admin rooms (if needed in future)
+    // Additional room authorization logic can be added here
+    
+    // For direct message rooms, ensure user is part of the conversation
+    // Format: "user1Id-user2Id" or "user2Id-user1Id"
+    if (roomId.includes('-') && roomId.split('-').length === 2) {
+      const participants = roomId.split('-');
+      return participants.includes(userId);
+    }
+    
+    // Deny access to all other rooms by default
+    console.log(`Access denied: User ${userId} attempted to access unauthorized room ${roomId}`);
+    return false;
+  };
+
   // Setup WebSocket server for real-time chat with authentication
   const wss = new WebSocketServer({ 
     server: httpServer, 
     path: '/ws',
-    verifyClient: async (info: any) => {
-      try {
-        // Extract token from URL query or headers
-        const url = new URL(info.req.url!, `http://${info.req.headers.host}`);
-        const token = url.searchParams.get('token') || 
-                     info.req.headers.authorization?.replace('Bearer ', '');
-        
-        if (!token) {
-          console.log('WebSocket connection rejected: No authentication token provided');
-          return false;
+    verifyClient: (info: any, done: (result: boolean) => void) => {
+      // Convert to async handling with proper callback
+      (async () => {
+        try {
+          // Extract token from URL query or headers
+          const url = new URL(info.req.url!, `http://${info.req.headers.host}`);
+          const token = url.searchParams.get('token') || 
+                       info.req.headers.authorization?.replace('Bearer ', '');
+          
+          if (!token) {
+            console.log('WebSocket connection rejected: No authentication token provided');
+            return done(false);
+          }
+
+          // Verify the JWT token with Supabase
+          const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+          
+          if (!supabaseUrl || !supabaseServiceKey) {
+            console.error('WebSocket: Missing Supabase environment variables');
+            return done(false);
+          }
+
+          const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+            auth: { autoRefreshToken: false, persistSession: false }
+          });
+
+          const { data: { user }, error } = await supabase.auth.getUser(token);
+          
+          if (error || !user) {
+            console.log('WebSocket connection rejected: Invalid token', error?.message);
+            return done(false);
+          }
+
+          // Store user info in the request for later use
+          (info.req as any).authenticatedUser = {
+            userId: user.id,
+            userEmail: user.email || 'unknown@example.com'
+          };
+
+          console.log(`WebSocket connection authenticated for user: ${user.id}`);
+          return done(true);
+        } catch (error) {
+          console.error('WebSocket authentication error:', error);
+          return done(false);
         }
-
-        // Verify the JWT token with Supabase
-        const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-        
-        if (!supabaseUrl || !supabaseServiceKey) {
-          console.error('WebSocket: Missing Supabase environment variables');
-          return false;
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-          auth: { autoRefreshToken: false, persistSession: false }
-        });
-
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        
-        if (error || !user) {
-          console.log('WebSocket connection rejected: Invalid token', error?.message);
-          return false;
-        }
-
-        // Store user info in the request for later use
-        (info.req as any).authenticatedUser = {
-          userId: user.id,
-          userEmail: user.email || 'unknown@example.com'
-        };
-
-        console.log(`WebSocket connection authenticated for user: ${user.id}`);
-        return true;
-      } catch (error) {
-        console.error('WebSocket authentication error:', error);
-        return false;
-      }
+      })();
     }
   });
 
@@ -281,10 +306,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return;
             }
             
-            // Validate room access permissions (basic room name validation for now)
+            // Validate room access permissions
             const roomId = joinValidation.data.roomId;
             if (!roomId.match(/^[a-zA-Z0-9_-]+$/)) {
               ws.send(JSON.stringify({ type: 'error', message: 'Invalid room ID format' }));
+              return;
+            }
+            
+            // CRITICAL SECURITY CHECK: Validate room access authorization
+            if (!validateRoomAccess(connectedUser.userId, roomId)) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Access denied: Unauthorized room access' }));
               return;
             }
             
@@ -314,6 +345,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (msgData.senderId !== connectedUser.userId) {
               console.error(`User ${connectedUser.userId} attempted to send message as ${msgData.senderId}`);
               ws.close(1008, 'Authentication violation');
+              return;
+            }
+            
+            // CRITICAL SECURITY CHECK: Validate room access authorization
+            if (!validateRoomAccess(connectedUser.userId, msgData.roomId)) {
+              console.error(`Unauthorized message attempt: User ${connectedUser.userId} to room ${msgData.roomId}`);
+              ws.send(JSON.stringify({ type: 'error', message: 'Access denied: Unauthorized room access' }));
               return;
             }
             
@@ -445,6 +483,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating submission:', error);
       res.status(500).json({ error: 'Failed to update submission' });
+    }
+  });
+
+  // SECURE: Server-side profile creation endpoint
+  app.post('/api/users/create-profile', authenticateToken, async (req, res) => {
+    try {
+      const { first_name, last_name, email } = req.body;
+      
+      // Validate required fields
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+      
+      // Security: Use authenticated user's ID and set role securely on server
+      const userData = {
+        id: req.user!.userId,
+        email: email,
+        firstName: first_name || null,
+        lastName: last_name || null,
+        role: 'student', // SECURE: Server-controlled role assignment
+        isActive: true,
+        referralPoints: 0,
+        totalPaid: 0,
+        totalOwed: 0,
+        createdAt: new Date().toISOString()
+      };
+      
+      const user = await storage.createUser(userData);
+      res.status(201).json(user);
+    } catch (error) {
+      console.error('Error creating user profile:', error);
+      // Check if user already exists
+      if (error instanceof Error && error.message.includes('already exists')) {
+        return res.status(409).json({ error: 'User profile already exists' });
+      }
+      res.status(500).json({ error: 'Failed to create user profile' });
     }
   });
 

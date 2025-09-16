@@ -52,10 +52,41 @@ export const getUserProfile = async (userId?: string) => {
     .from('users')
     .select('*')
     .eq('id', uid)
-    .single()
+    .maybeSingle() // Use maybeSingle instead of single to handle 0 rows
     
   if (error) throw error
-  return data
+  return data // Will be null if no profile exists yet
+}
+
+// SECURE: Helper to create user profile via secure server endpoint
+export const createUserProfile = async (userData: {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+}) => {
+  // Get the current session to ensure user is authenticated
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new Error('Authentication required');
+  }
+  
+  // Make secure API call to server endpoint
+  const response = await fetch('/api/users/create-profile', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(userData)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to create user profile');
+  }
+  
+  return await response.json();
 }
 
 // Helper to sign out
