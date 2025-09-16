@@ -1,25 +1,16 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
-import { supabase, getUserProfile, createUserProfile } from '@/lib/supabase';
+import { supabase, ensureProfile } from '@/lib/supabase';
 
-// User profile type from our backend users table
-interface UserProfile {
+// Profile type for the profiles table
+interface Profile {
   id: string;
-  email: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  school: string | null;
-  student_id: string | null;
-  role: string;
-  profile_picture: string | null;
-  referral_code: string | null;
-  referral_points: number | null;
-  total_paid: number | null;
-  total_owed: number | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  school?: string | null;
+  student_id?: string | null;
+  created_at?: string;
 }
 
 // Combined user type that matches what components expect
@@ -40,9 +31,7 @@ interface CombinedUser {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
-  // Admin field
   isAdmin?: boolean;
-  // Additional properties for compatibility
   displayName?: string;
   points?: number;
   avatarUrl?: string;
@@ -50,7 +39,7 @@ interface CombinedUser {
 
 interface AuthContextType {
   user: CombinedUser | null;
-  profile: UserProfile | null;
+  profile: Profile | null;
   session: Session | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
@@ -73,115 +62,48 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<CombinedUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    console.log('🔍 STARTING refreshProfile execution...');
-    try {
-      setLoading(true);
-      console.log('🔍 Getting auth user from Supabase...');
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      console.log('🔍 Auth user result:', authUser ? 'Found user' : 'No user', authUser?.id);
+    const { data } = await supabase.auth.getSession()
+    setSession(data.session ?? null)
+    if (data.session?.user) {
+      const profileData = await ensureProfile(data.session.user.id)
+      setProfile(profileData)
       
-      if (authUser) {
-        let profileData = null;
-        
-        try {
-          profileData = await getUserProfile(authUser.id);
-          
-          // If no profile exists, create one automatically for new users
-          if (!profileData) {
-            console.log('Creating new user profile for:', authUser.id);
-            try {
-              // Use the correct createUserProfile function that calls the right endpoint
-              profileData = await createUserProfile({
-                email: authUser.email || '',
-                first_name: authUser.user_metadata?.first_name || 'User',
-                last_name: authUser.user_metadata?.last_name || '',
-              });
-              console.log('Created user profile successfully');
-            } catch (createError) {
-              console.error('Failed to create user profile:', createError);
-              // Continue with null profileData but still set user from auth data
-            }
-          }
-        } catch (profileError) {
-          console.error('Error getting/creating profile:', profileError);
-          // Continue with null profileData but still set user from auth data
-        }
-        
-        setProfile(profileData);
-        
-        // CRITICAL FIX: Always create user object from auth data, regardless of profile success/failure
-        const combinedUser: CombinedUser = {
-          id: authUser.id,
-          email: authUser.email || '',
-          firstName: profileData?.first_name || authUser.user_metadata?.first_name || 'User',
-          lastName: profileData?.last_name || authUser.user_metadata?.last_name || '',
-          phone: profileData?.phone || undefined,
-          school: profileData?.school || undefined,
-          studentId: profileData?.student_id || undefined,
-          role: profileData?.role || 'student',
-          profilePicture: profileData?.profile_picture || undefined,
-          referralCode: profileData?.referral_code || undefined,
-          referralPoints: profileData?.referral_points || 0,
-          totalPaid: profileData?.total_paid || 0,
-          totalOwed: profileData?.total_owed || 0,
-          isActive: profileData?.is_active ?? true,
-          createdAt: profileData?.created_at || authUser.created_at,
-          updatedAt: profileData?.updated_at || undefined,
-          isAdmin: profileData?.role === 'admin',
-          // Additional properties for compatibility
-          displayName: profileData?.first_name && profileData?.last_name 
-            ? `${profileData.first_name} ${profileData.last_name}` 
-            : authUser.user_metadata?.full_name || 'User',
-          points: profileData?.referral_points || 0,
-          avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
-        };
-        
-        console.log('Setting user object in AuthContext:', combinedUser.id, combinedUser.email);
-        setUser(combinedUser);
-      } else {
-        console.log('No authenticated user found, clearing state');
-        setProfile(null);
-        setUser(null);
-      }
-    } catch (error) {
-      console.error('Critical error in refreshProfile:', error);
-      // Even on critical error, try to get basic auth user info
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          console.log('Setting fallback user object from auth data');
-          const fallbackUser: CombinedUser = {
-            id: authUser.id,
-            email: authUser.email || '',
-            firstName: authUser.user_metadata?.first_name || 'User',
-            lastName: authUser.user_metadata?.last_name || '',
-            role: 'student',
-            isActive: true,
-            createdAt: authUser.created_at,
-            displayName: authUser.user_metadata?.full_name || 'User',
-            referralPoints: 0,
-            totalPaid: 0,
-            totalOwed: 0,
-            points: 0
-          };
-          setUser(fallbackUser);
-        } else {
-          setUser(null);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback auth check also failed:', fallbackError);
-        setUser(null);
-      }
+      // Create combined user object
+      const combinedUser: CombinedUser = {
+        id: data.session.user.id,
+        email: data.session.user.email || '',
+        firstName: profileData?.first_name || '',
+        lastName: profileData?.last_name || '',
+        phone: profileData?.phone || undefined,
+        school: profileData?.school || undefined,
+        studentId: profileData?.student_id || undefined,
+        role: 'student',
+        profilePicture: undefined,
+        referralCode: undefined,
+        referralPoints: 0,
+        totalPaid: 0,
+        totalOwed: 0,
+        isActive: true,
+        createdAt: profileData?.created_at || data.session.user.created_at,
+        isAdmin: false,
+        displayName: profileData?.first_name && profileData?.last_name 
+          ? `${profileData.first_name} ${profileData.last_name}` 
+          : undefined,
+        points: 0,
+        avatarUrl: undefined
+      };
+      
+      setUser(combinedUser);
+    } else {
+      setUser(null);
       setProfile(null);
-    } finally {
-      setLoading(false);
     }
-  };
+  }
 
   const signOut = async () => {
     try {
@@ -194,55 +116,85 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   useEffect(() => {
-    let mounted = true;
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
-      setSession(session);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session ?? null)
       if (session?.user) {
-        refreshProfile();
+        const profileData = await ensureProfile(session.user.id)
+        setProfile(profileData)
+        
+        // Create combined user object
+        const combinedUser: CombinedUser = {
+          id: session.user.id,
+          email: session.user.email || '',
+          firstName: profileData?.first_name || '',
+          lastName: profileData?.last_name || '',
+          phone: profileData?.phone || undefined,
+          school: profileData?.school || undefined,
+          studentId: profileData?.student_id || undefined,
+          role: 'student',
+          profilePicture: undefined,
+          referralCode: undefined,
+          referralPoints: 0,
+          totalPaid: 0,
+          totalOwed: 0,
+          isActive: true,
+          createdAt: profileData?.created_at || session.user.created_at,
+          isAdmin: false,
+          displayName: profileData?.first_name && profileData?.last_name 
+            ? `${profileData.first_name} ${profileData.last_name}` 
+            : undefined,
+          points: 0,
+          avatarUrl: undefined
+        };
+        
+        setUser(combinedUser);
       } else {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
+        setProfile(null)
+        setUser(null)
       }
-    });
+      setLoading(false)
+    })
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
+    // Set initial state on first load
+    ;(async () => {
+      const { data } = await supabase.auth.getSession()
+      setSession(data.session ?? null)
+      if (data.session?.user) {
+        const profileData = await ensureProfile(data.session.user.id)
+        setProfile(profileData)
         
-        console.log('Auth state changed:', event, session?.user?.id);
-        console.log('Current user object:', user?.id, 'New session user:', session?.user?.id);
+        // Create combined user object
+        const combinedUser: CombinedUser = {
+          id: data.session.user.id,
+          email: data.session.user.email || '',
+          firstName: profileData?.first_name || '',
+          lastName: profileData?.last_name || '',
+          phone: profileData?.phone || undefined,
+          school: profileData?.school || undefined,
+          studentId: profileData?.student_id || undefined,
+          role: 'student',
+          profilePicture: undefined,
+          referralCode: undefined,
+          referralPoints: 0,
+          totalPaid: 0,
+          totalOwed: 0,
+          isActive: true,
+          createdAt: profileData?.created_at || data.session.user.created_at,
+          isAdmin: false,
+          displayName: profileData?.first_name && profileData?.last_name 
+            ? `${profileData.first_name} ${profileData.last_name}` 
+            : undefined,
+          points: 0,
+          avatarUrl: undefined
+        };
         
-        setSession(session);
-        
-        if (session?.user) {
-          // CRITICAL FIX: Always refresh profile for SIGNED_IN events to ensure UI updates
-          if (!user || user.id !== session.user.id || event === 'SIGNED_IN') {
-            console.log('Calling refreshProfile for auth state change');
-            await refreshProfile();
-          } else {
-            console.log('Skipping refreshProfile - user already set and same ID');
-          }
-        } else {
-          console.log('No session user, clearing state');
-          setProfile(null);
-          setUser(null);
-        }
-        
-        setLoading(false);
+        setUser(combinedUser);
       }
-    );
+      setLoading(false)
+    })()
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [user?.id]); // Only re-run if user ID changes
+    return () => sub.subscription.unsubscribe()
+  }, [])
 
   const value = {
     user,
