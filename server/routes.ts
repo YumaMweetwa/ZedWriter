@@ -511,7 +511,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const user = await storage.createUser(userData);
-      res.status(201).json(user);
+      
+      // Convert camelCase response to snake_case for client compatibility
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        student_id: user.studentId,
+        phone: user.phone,
+        school: user.school,
+        role: user.role,
+        profile_picture: user.profilePicture,
+        referral_code: user.referralCode,
+        referral_points: user.referralPoints,
+        total_paid: user.totalPaid,
+        total_owed: user.totalOwed,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      };
+      
+      res.status(201).json(userResponse);
     } catch (error) {
       console.error('Error creating user profile:', error);
       // Check if user already exists
@@ -534,7 +555,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json(user);
+      
+      // Convert camelCase response to snake_case for client compatibility
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        student_id: user.studentId,
+        phone: user.phone,
+        school: user.school,
+        role: user.role,
+        profile_picture: user.profilePicture,
+        referral_code: user.referralCode,
+        referral_points: user.referralPoints,
+        total_paid: user.totalPaid,
+        total_owed: user.totalOwed,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      };
+      
+      res.json(userResponse);
     } catch (error) {
       console.error('Error fetching user:', error);
       res.status(500).json({ error: 'Failed to fetch user' });
@@ -545,7 +587,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userData = { ...req.body };
       const user = await storage.createUser(userData);
-      res.status(201).json(user);
+      
+      // Convert camelCase response to snake_case for client compatibility
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        student_id: user.studentId,
+        phone: user.phone,
+        school: user.school,
+        role: user.role,
+        profile_picture: user.profilePicture,
+        referral_code: user.referralCode,
+        referral_points: user.referralPoints,
+        total_paid: user.totalPaid,
+        total_owed: user.totalOwed,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      };
+      
+      res.status(201).json(userResponse);
     } catch (error) {
       console.error('Error creating user:', error);
       res.status(500).json({ error: 'Failed to create user' });
@@ -560,7 +623,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.updateUser(req.params.id, req.body);
-      res.json(user);
+      
+      // Convert camelCase response to snake_case for client compatibility
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        student_id: user.studentId,
+        phone: user.phone,
+        school: user.school,
+        role: user.role,
+        profile_picture: user.profilePicture,
+        referral_code: user.referralCode,
+        referral_points: user.referralPoints,
+        total_paid: user.totalPaid,
+        total_owed: user.totalOwed,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      };
+      
+      res.json(userResponse);
     } catch (error) {
       console.error('Error updating user:', error);
       res.status(500).json({ error: 'Failed to update user' });

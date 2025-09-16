@@ -87,22 +87,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (!profileData) {
           console.log('Creating new user profile for:', authUser.id);
           try {
-            // Call server endpoint to create profile securely
-            const response = await fetch('/api/users/profile', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-              },
-              body: JSON.stringify({
-                first_name: authUser.user_metadata?.first_name,
-                last_name: authUser.user_metadata?.last_name,
-              })
+            // Use the correct createUserProfile function that calls the right endpoint
+            profileData = await createUserProfile({
+              email: authUser.email || '',
+              first_name: authUser.user_metadata?.first_name,
+              last_name: authUser.user_metadata?.last_name,
             });
-            if (response.ok) {
-              profileData = await response.json();
-              console.log('Created user profile successfully');
-            }
+            console.log('Created user profile successfully');
           } catch (createError) {
             console.error('Failed to create user profile:', createError);
             // Continue with auth user data even if profile creation fails
