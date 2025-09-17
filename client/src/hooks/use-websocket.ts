@@ -23,7 +23,7 @@ export const useWebSocket = (userId?: string, options: WebSocketOptions = {}) =>
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const wsRef = useRef<WebSocket | null>(null);
-  
+
   const { 
     roomId, 
     autoReconnect = true, 
@@ -31,28 +31,23 @@ export const useWebSocket = (userId?: string, options: WebSocketOptions = {}) =>
   } = options;
 
   const connectWebSocket = async () => {
+    // Only attempt to connect if userId is present
+    if (!userId) {
+      // Do not set error, just skip connection for unauthenticated users
+      return;
+    }
     try {
-      if (!userId) {
-        setConnectionError('User ID required');
-        return;
-      }
-
       // Get the current session and access token
       const { data: { session }, error } = await supabase.auth.getSession();
-      
       if (error || !session?.access_token) {
-        console.error('No valid session for WebSocket connection:', error);
-        setConnectionError('Authentication required - please sign in');
+        // Do not set error, just skip connection for unauthenticated users
         return;
       }
-
       // Build WebSocket URL with auth token
       const wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + 
                     window.location.host + '/ws?token=' + encodeURIComponent(session.access_token);
-      
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-      
       ws.onopen = () => {
         console.log('WebSocket connected successfully');
         setConnected(true);
