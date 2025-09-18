@@ -73,13 +73,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    console.log('🔍 AUTH DIAGNOSTIC - Context state changed:');
-    console.log('  - user:', user ? `${user.id} (${user.email})` : 'null');
-    console.log('  - profile:', profile ? 'loaded' : 'null');
-    console.log('  - session:', session ? 'exists' : 'null');
-    console.log('  - loading:', loading);
-    console.log('  - profile loading:', false);
-    
     try {
       setLoading(true);
       console.log('🔍 Getting auth user from Supabase...');
@@ -141,7 +134,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
         };
         
-        console.log('Setting user object in AuthContext:', combinedUser.id, combinedUser.email);
+        console.log('Setting user object in AuthContext:', combinedUser.id, combinedUser.email, 'Role:', combinedUser.role);
         setUser(combinedUser);
       } else {
         console.log('No authenticated user found, clearing state');
@@ -246,6 +239,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
+  // Debug logging for current state
+  useEffect(() => {
+    console.log('🔍 AUTH DIAGNOSTIC - Context state changed:');
+    console.log('  - user:', user ? `${user.id} (${user.email}) Role: ${user.role}` : 'null');
+    console.log('  - profile:', profile ? 'loaded' : 'null');
+    console.log('  - session:', session ? 'exists' : 'null');
+    console.log('  - loading:', loading);
+    console.log('  - profile loading:', false);
+  }, [user, profile, session, loading]);
+
   const signInWithEmail = async (email: string, password: string) => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -271,8 +274,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Manually clear all state
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      console.log('🔍 Sign out completed - all state cleared');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const value = {
