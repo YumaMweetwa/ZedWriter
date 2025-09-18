@@ -535,9 +535,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(userResponse);
     } catch (error) {
       console.error('Error creating user profile:', error);
-      // Check if user already exists
-      if (error instanceof Error && error.message.includes('already exists')) {
-        return res.status(409).json({ error: 'User profile already exists' });
+      // Check for various "already exists" error patterns
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('already exists') || 
+            errorMessage.includes('duplicate key') || 
+            errorMessage.includes('unique constraint')) {
+          return res.status(409).json({ error: 'User profile already exists' });
+        }
       }
       res.status(500).json({ error: 'Failed to create user profile' });
     }

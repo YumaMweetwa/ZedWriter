@@ -92,8 +92,8 @@ export const DashboardPage = () => {
       return await updateProfile({
         first_name: data.firstName,
         last_name: data.lastName,
-        phone: data.phone || null,
-        school: data.school || null,
+        phone: data.phone || undefined,
+        school: data.school || undefined,
       });
     },
     onSuccess: () => {

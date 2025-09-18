@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
@@ -9,7 +10,8 @@ export const AuthDiagnostic = () => {
   if (import.meta.env.PROD) {
     return null;
   }
-  const { user, profile, session, loading } = useAuth();
+  const { user, session, loading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -36,7 +38,8 @@ export const AuthDiagnostic = () => {
     console.log('  - profile:', profile ? 'loaded' : 'null');
     console.log('  - session:', session ? 'exists' : 'null');
     console.log('  - loading:', loading);
-  }, [user, profile, session, loading]);
+    console.log('  - profile loading:', profileLoading);
+  }, [user, profile, session, loading, profileLoading]);
 
   return (
     <div className="fixed bottom-4 right-4 bg-black text-white p-3 rounded-lg text-xs font-mono z-50 max-w-sm">
@@ -44,7 +47,7 @@ export const AuthDiagnostic = () => {
       <div className="space-y-1">
         <div>Loading: {loading ? '⏳' : '✅'}</div>
         <div>Supabase User: {supabaseUser ? '✅ Signed In' : '❌ Not signed'}</div>
-        <div>Context User: {user ? `✅ ${user.firstName || 'User'}` : '❌ Null'}</div>
+        <div>Context User: {user ? `✅ ${profile?.first_name || 'User'}` : '❌ Null'}</div>
         <div>Profile: {profile ? '✅' : '❌'}</div>
         <div>Session: {session ? '✅' : '❌'}</div>
         {user && (
