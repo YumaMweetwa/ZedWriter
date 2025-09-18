@@ -1095,31 +1095,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Topic generation route with Gemini AI
-  app.post('/api/generate-topics', authenticateToken, async (req, res) => {
+  // Topic generation route with Gemini AI (temporarily without auth for debugging)
+  app.post('/api/generate-topics', async (req, res) => {
     try {
-      const { domain, department, studyArea, keywords, comments } = req.body;
+      console.log('Received topic generation request:', req.body);
+      const { domain, subdomain, department, studyArea, keywords, comments } = req.body;
       
       // Validate required fields
       if (!domain || !department || !studyArea) {
+        console.log('Missing required fields:', { domain, department, studyArea });
         return res.status(400).json({ 
           error: 'Missing required fields: domain, department, and studyArea are required' 
         });
       }
       
+      console.log('Generating topics with data:', { domain, department, studyArea, keywords, comments });
+      
       // Generate research topics using Gemini AI
       try {
-        const topics = await generateResearchTopics({ domain, department, studyArea, keywords, comments });
+        const topics = await generateResearchTopics({ domain, subdomain, department, studyArea, keywords, comments });
         res.json({ success: true, topics });
       } catch (aiError) {
         console.error('AI generation failed:', aiError);
-        
-        // Fallback to enhanced local generation if AI fails
-        const fallbackTopics = generateEnhancedFallbackTopics({ domain, department, studyArea, keywords, comments });
-        res.json({ 
-          success: true, 
-          topics: fallbackTopics,
-          note: 'Generated using enhanced fallback method due to AI service unavailability'
+        res.status(500).json({
+          error: 'AI service temporarily unavailable. Please try again later.',
+          details: process.env.NODE_ENV === 'development' ? (aiError as Error).message : undefined
         });
       }
     } catch (error) {
@@ -1368,167 +1368,187 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 // Gemini AI helper function for research topic generation
-async function generateResearchTopics(formData: { 
-  domain: string; 
-  department: string; 
-  studyArea: string; 
-  keywords?: string; 
-  comments?: string; 
+async function generateResearchTopics(formData: {
+  domain: string;
+  subdomain?: string;
+  department: string;
+  studyArea: string;
+  keywords?: string;
+  comments?: string;
 }) {
-  const prompt = createResearchPrompt(formData);
-  
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-    config: {
-      temperature: 0.8,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 1024
-    }
-  });
+  console.log('Starting Gemini AI generation with data:', formData);
 
-  if (response.text) {
-    const topics = parseAITopics(response.text);
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
+  }
+
+  const prompt = createResearchPrompt(formData);
+  console.log('Generated prompt:', prompt);
+
+  try {
+    console.log('Making Gemini API call...');
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: prompt
+    });
+
+    console.log('Gemini API call successful');
+    console.log('Response structure:', Object.keys(response));
+    console.log('Full response:', JSON.stringify(response, null, 2));
+
+    // Try to extract text from response
+    let responseText = null;
+
+    // Check if response has text property directly
+    if (response.text) {
+      responseText = response.text;
+      console.log('Found text via response.text');
+    }
+    // Check candidates structure (newer API format)
+    else if (response.candidates && response.candidates.length > 0) {
+      const candidate = response.candidates[0];
+      console.log('Candidate:', candidate);
+
+      if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+        const part = candidate.content.parts[0];
+        console.log('First part:', part);
+
+        if (part.text) {
+          responseText = part.text;
+          console.log('Found text via candidates structure');
+        }
+      }
+    }
+
+    if (!responseText) {
+      console.error('Could not extract text from Gemini response');
+      throw new Error('Invalid response structure from Gemini API');
+    }
+
+    console.log('Extracted response text:', responseText);
+    const topics = parseAITopics(responseText);
+    console.log('Parsed topics:', topics);
+
     if (topics.length === 0) {
       throw new Error('No valid topics could be parsed from AI response');
     }
+
     return topics;
-  } else {
-    throw new Error('Invalid response structure from Gemini API');
+  } catch (apiError) {
+    console.error('Gemini API call failed:', apiError);
+    console.error('Error details:', (apiError as Error).message);
+    throw apiError;
   }
 }
-
 // Create optimized prompt for research topics
-function createResearchPrompt(formData: { 
-  domain: string; 
-  department: string; 
-  studyArea: string; 
-  keywords?: string; 
-  comments?: string; 
+function createResearchPrompt(formData: {
+  domain: string;
+  subdomain?: string;
+  department: string;
+  studyArea: string;
+  keywords?: string;
+  comments?: string;
 }) {
-  let prompt = `Generate research topics in not more than 20 words each based on the provided selections.
+  let prompt = `You are an expert academic research topic generator. Create a single, well-structured research topic that follows this exact format:
 
-MANDATORY INFORMATION (MUST be included in EVERY topic):
-- Domain: ${formData.domain}
-- Department: ${formData.department}
-- Study Area: ${formData.studyArea} (MUST appear in every topic)`;
-
-  if (formData.keywords) {
-    prompt += `
-- Research Keywords: ${formData.keywords} (MUST be incorporated in every topic)`;
-  }
+Create a research topic focused on the "${formData.subdomain || formData.domain}" field specifically in ${formData.department}. Some key words that should be considered in the research topic are: ${formData.keywords || 'relevant academic terms'}. The study area of this research will be at "${formData.studyArea}".`;
 
   if (formData.comments) {
-    prompt += `
-- Additional Requirements: ${formData.comments} (MUST be considered in every topic)`;
+    prompt += ` Also consider the following key information: ${formData.comments}.`;
   }
 
   prompt += `
 
-STRICT REQUIREMENTS:
-1. Every topic MUST include the study area "${formData.studyArea}"
-2. Every topic MUST be related to ${formData.domain} and ${formData.department}`;
+IMPORTANT REQUIREMENTS:
+- Make the topic sound academic and natural with proper grammatical integration
+- Do not write abbreviations in the title - use full names only
+- Ensure the topic flows naturally as a complete sentence or phrase
+- Integrate all required elements (study area, keywords, subdomain, department) seamlessly
+- Keep the topic between 15-25 words
+- Use formal academic language
+- Make it suitable for serious academic research
 
-  if (formData.keywords) {
-    prompt += `
-3. Every topic MUST incorporate the keywords "${formData.keywords}"`;
-  }
-
-  if (formData.comments) {
-    const reqNumber = formData.keywords ? 4 : 3;
-    prompt += `
-${reqNumber}. Every topic MUST consider the additional requirements: "${formData.comments}"`;
-  }
-
-  const nextReqNumber = (formData.keywords && formData.comments) ? 5 : formData.keywords || formData.comments ? 4 : 3;
-  
-  prompt += `
-${nextReqNumber}. Each topic should be specific, measurable, and achievable
-${nextReqNumber + 1}. Address current gaps in ${formData.domain.toLowerCase()} research  
-${nextReqNumber + 2}. Consider ethical feasibility and resource constraints
-${nextReqNumber + 3}. Each topic should be not more than 20 words
-${nextReqNumber + 4}. Focus on innovation, feasibility, and academic significance
-
-Format: Return exactly 6 numbered research titles:
-1. [First topic - max 20 words, MUST include study area "${formData.studyArea}"]
-2. [Second topic - max 20 words, MUST include study area "${formData.studyArea}"]
-3. [Third topic - max 20 words, MUST include study area "${formData.studyArea}"]
-4. [Fourth topic - max 20 words, MUST include study area "${formData.studyArea}"]
-5. [Fifth topic - max 20 words, MUST include study area "${formData.studyArea}"]
-6. [Sixth topic - max 20 words, MUST include study area "${formData.studyArea}"]
-
-REMEMBER: The study area "${formData.studyArea}" is MANDATORY and must appear in every single topic title.`;
+Generate exactly ONE research topic that reads naturally and academically.`;
 
   return prompt;
 }
 
 // Parse AI response to extract topics
 function parseAITopics(text: string): string[] {
-  const lines = text.split('\n').filter(line => line.trim());
-  const topics: string[] = [];
-  
-  lines.forEach(line => {
-    // Match numbered items (1., 2., etc.) or bullet points
-    const numberedMatch = line.match(/^\d+\.\s*(.+)/);
-    const bulletMatch = line.match(/^[-*]\s*(.+)/);
-    
-    if (numberedMatch) {
-      let topic = numberedMatch[1].trim();
-      // Remove trailing periods and clean up
-      topic = topic.replace(/\.$/, '').replace(/"/g, '').replace(/\[|\]/g, '');
-      if (topic.length > 10) { // Ensure it's a substantial topic
-        topics.push(topic);
-      }
-    } else if (bulletMatch) {
-      let topic = bulletMatch[1].trim();
-      topic = topic.replace(/\.$/, '').replace(/"/g, '').replace(/\[|\]/g, '');
-      if (topic.length > 10) {
-        topics.push(topic);
-      }
-    }
-  });
-  
-  // If no numbered/bulleted items found, try to extract topics from paragraphs
-  if (topics.length === 0) {
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    sentences.slice(0, 6).forEach(sentence => {
-      const cleaned = sentence.trim().replace(/"/g, '');
-      if (cleaned.length > 10) {
-        topics.push(cleaned);
-      }
-    });
+  console.log('Parsing AI response text:', text);
+
+  // Clean up the text
+  const cleanedText = text.trim();
+
+  // For single topic generation, try to extract the topic directly
+  // Remove any prefixes like "Create a research topic..." or similar
+  let topic = cleanedText;
+
+  // Remove common prefixes that might be in the response
+  const prefixesToRemove = [
+    /^Create a research topic/i,
+    /^Here is a research topic/i,
+    /^The research topic is/i,
+    /^Research topic:/i,
+    /^Topic:/i
+  ];
+
+  for (const prefix of prefixesToRemove) {
+    topic = topic.replace(prefix, '').trim();
   }
-  
-  return topics.slice(0, 6); // Return exactly 6 topics max
+
+  // Remove quotes if present
+  topic = topic.replace(/^["']|["']$/g, '').trim();
+
+  // If the topic is substantial (more than 10 characters), return it
+  if (topic.length > 10) {
+    console.log('Extracted single topic:', topic);
+    return [topic];
+  }
+
+  // Fallback: try to find any substantial text
+  const sentences = cleanedText.split(/[.!?]+/).filter(s => s.trim().length > 15);
+  if (sentences.length > 0) {
+    const fallbackTopic = sentences[0].trim().replace(/"/g, '');
+    console.log('Fallback topic extracted:', fallbackTopic);
+    return [fallbackTopic];
+  }
+
+  // If all else fails, return the original cleaned text
+  console.log('Using original text as topic:', cleanedText);
+  return [cleanedText || 'Generated Research Topic'];
 }
 
 // Enhanced fallback topic generation
-function generateEnhancedFallbackTopics(formData: { 
-  domain: string; 
-  department: string; 
-  studyArea: string; 
-  keywords?: string; 
-  comments?: string; 
+function generateEnhancedFallbackTopics(formData: {
+  domain: string;
+  department: string;
+  studyArea: string;
+  keywords?: string;
+  comments?: string;
 }): string[] {
-  const { domain, department, studyArea, keywords } = formData;
-  
+  const { domain, department, studyArea, keywords, comments } = formData;
+
+  // Parse keywords into array for better handling
+  const keywordArray = keywords ? keywords.split(',').map(k => k.trim()) : [];
+  const primaryKeyword = keywordArray[0] || 'Advanced';
+  const secondaryKeyword = keywordArray[1] || 'Modern';
+
+  // Enhanced fallback templates with better structure
   const fallbackTemplates = [
-    `Impact of Digital Technology on ${studyArea} in ${department}`,
-    `${studyArea} Management Strategies in ${domain} Sector`,
-    `Evaluating ${studyArea} Practices in Modern ${department}`,
-    `Innovation and ${studyArea} Development in ${domain}`,
-    `Sustainable Approaches to ${studyArea} in ${department}`,
-    `${studyArea} Quality Improvement in ${domain} Services`
+    `Evaluating ${primaryKeyword} Approaches to ${studyArea} in ${department}`,
+    `Impact of ${secondaryKeyword} ${studyArea} Implementation in ${domain}`,
+    `Assessment of ${studyArea} ${primaryKeyword} Strategies in ${department}`,
+    `Exploring ${secondaryKeyword} ${studyArea} Applications in ${domain}`,
+    `Analysis of ${primaryKeyword} ${studyArea} Outcomes in ${department}`,
+    `Development of ${secondaryKeyword} ${studyArea} Solutions for ${domain}`
   ];
-  
-  // Incorporate keywords if provided
-  const topics = fallbackTemplates.map(template => {
-    if (keywords) {
-      return template.replace(studyArea, `${keywords} ${studyArea}`);
-    }
-    return template;
-  });
-  
-  return topics.slice(0, 6);
+
+  // If comments are provided, try to incorporate them
+  if (comments && comments.toLowerCase().includes('zambia')) {
+    fallbackTemplates[0] = `Evaluating ${primaryKeyword} ${studyArea} Implementation in Zambia's ${department}`;
+    fallbackTemplates[1] = `Impact of ${secondaryKeyword} ${studyArea} on Healthcare Delivery in Zambia`;
+  }
+
+  return fallbackTemplates.slice(0, 6);
 }

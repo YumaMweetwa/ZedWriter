@@ -11,7 +11,10 @@ if (!process.env.DATABASE_URL) {
 const connectionString = process.env.DATABASE_URL;
 const client = postgres(connectionString, { 
   max: 10, // Maximum connections in pool
-  ssl: process.env.NODE_ENV === 'production' ? 'require' : 'prefer'
+  ssl: process.env.NODE_ENV === 'production' ? 'require' : 'prefer',
+  connect_timeout: 30,
+  idle_timeout: 20,
+  max_lifetime: 60 * 30
 });
 
 // Create drizzle instance
