@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { SupabaseStorage } from '../storage-supabase';
+import { pgClient } from '../db';
 
 // Initialize Supabase client for server-side auth verification
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
@@ -53,8 +54,8 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
     
-    // Get user profile from our database
-    const profile = await getUserProfile(user.id);
+    // Get user profile from our database (auto-create if needed)
+    const profile = await getUserProfile(user.id, user.email);
     
     // Add user info to request
     req.user = {
@@ -83,8 +84,8 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
       const { data: { user }, error } = await supabase.auth.getUser(token);
       
       if (!error && user) {
-        // Get user profile from our database
-        const profile = await getUserProfile(user.id);
+        // Get user profile from our database (auto-create if needed)
+        const profile = await getUserProfile(user.id, user.email);
         
         req.user = {
           id: user.id,
@@ -103,21 +104,43 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-// Helper function to get user profile
-async function getUserProfile(userId: string) {
+// Helper function to get user profile and automatically create if doesn't exist
+async function getUserProfile(userId: string, userEmail?: string) {
   try {
+    // First try to get existing profile
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
     
-    if (error) {
-      console.error('Error fetching user profile:', error);
-      return null;
+    if (!error && data) {
+      return data;
     }
     
-    return data;
+    // If profile doesn't exist and we have email, create it automatically
+    if (userEmail) {
+      console.log(`Creating profile automatically for user ${userId} (${userEmail})`);
+      try {
+        const result = await pgClient`
+          SELECT * FROM public.ensure_user_profile(
+            ${userId},
+            ${userEmail},
+            '',
+            ''
+          )
+        `;
+        
+        if (result && result.length > 0) {
+          console.log(`✅ Profile created automatically for ${userEmail}`);
+          return result[0];
+        }
+      } catch (createError) {
+        console.error('Error auto-creating profile:', createError);
+      }
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error in getUserProfile:', error);
     return null;

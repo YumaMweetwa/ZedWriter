@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { PROGRAMS, MEDICINE_YEARS, MATERIAL_TYPES } from '@/utils/constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
+import { useQuery } from '@tanstack/react-query';
 
 interface MaterialsFilter {
   search: string;
@@ -55,39 +56,23 @@ export const MaterialsPage = () => {
     });
   };
 
-  // Mock materials data - in real app this would come from Firestore
-  const materials = [
-    {
-      id: '1',
-      title: 'Anatomy Study Notes - Cardiovascular System',
-      description: 'Comprehensive notes covering heart anatomy and physiology',
-      program: 'medicine',
-      year: '211',
-      type: 'study_notes',
-      uploadedAt: '2 weeks ago',
-      fileSize: '2.3 MB'
-    },
-    {
-      id: '2',
-      title: 'Pharmacology Past Paper 2023',
-      description: 'End of year examination with answer key',
-      program: 'medicine',
-      year: '311',
-      type: 'past_papers_theory',
-      uploadedAt: '1 week ago',
-      fileSize: '1.8 MB'
-    },
-    {
-      id: '3',
-      title: 'Clinical Skills OSCE Guide',
-      description: 'Step-by-step guide for clinical examinations',
-      program: 'medicine',
-      year: '421',
-      type: 'past_papers_practical',
-      uploadedAt: '3 days ago',
-      fileSize: '3.1 MB'
+  // Fetch real materials from the backend API
+  const { data: materials = [], isLoading: materialsLoading, error: materialsError } = useQuery({
+    queryKey: ['/api/materials', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters.program && filters.program !== 'all') params.append('program', filters.program);
+      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+      if (filters.type && filters.type !== 'all') params.append('type', filters.type);
+      if (filters.search) params.append('search', filters.search);
+      
+      const response = await fetch(`/api/materials?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch materials');
+      }
+      return response.json();
     }
-  ];
+  });
 
   return (
     <div className="min-h-screen py-12 bg-background">
@@ -242,34 +227,80 @@ export const MaterialsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-card divide-y divide-border">
-                  {materials.map((material) => (
-                    <tr key={material.id} data-testid={`material-row-${material.id}`}>
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{material.title}</p>
-                          <p className="text-xs text-muted-foreground">{material.description}</p>
+                  {materialsLoading ? (
+                    // Loading state
+                    Array.from({ length: 3 }).map((_, index) => (
+                      <tr key={index}>
+                        <td className="px-6 py-4">
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                            <div className="h-3 bg-muted rounded w-1/2"></div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4"><div className="h-6 bg-muted rounded w-20 animate-pulse"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-muted rounded w-16 animate-pulse"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-muted rounded w-24 animate-pulse"></div></td>
+                        <td className="px-6 py-4"><div className="h-4 bg-muted rounded w-20 animate-pulse"></div></td>
+                        <td className="px-6 py-4"><div className="h-8 bg-muted rounded w-8 animate-pulse"></div></td>
+                      </tr>
+                    ))
+                  ) : materialsError ? (
+                    // Error state
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center">
+                        <div className="text-red-500">
+                          <i className="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                          <p className="text-sm">Failed to load materials</p>
+                          <p className="text-xs text-muted-foreground">{materialsError.message}</p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        <Badge variant="secondary">Medicine</Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{material.year}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {MATERIAL_TYPES.find(t => t.value === material.type)?.label}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{material.uploadedAt}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownload(material.id, material.title)}
-                          data-testid={`download-material-${material.id}`}
-                        >
-                          <i className="fas fa-download text-primary"></i>
-                        </Button>
+                    </tr>
+                  ) : materials.length === 0 ? (
+                    // Empty state
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center">
+                        <div className="text-muted-foreground">
+                          <i className="fas fa-folder-open text-2xl mb-2"></i>
+                          <p className="text-sm">No materials found</p>
+                          <p className="text-xs">Try adjusting your filters or search terms</p>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    // Materials data
+                    materials.map((material) => (
+                      <tr key={material.id} data-testid={`material-row-${material.id}`}>
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{material.title}</p>
+                            <p className="text-xs text-muted-foreground">{material.description}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          <Badge variant="secondary">
+                            {PROGRAMS.find(p => p.value === material.program)?.label || material.program}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{material.year}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          {MATERIAL_TYPES.find(t => t.value === material.type)?.label || material.type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          {material.uploadedAt || material.created_at || 'Unknown'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownload(material.id, material.title)}
+                            data-testid={`download-material-${material.id}`}
+                          >
+                            <i className="fas fa-download text-primary"></i>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
