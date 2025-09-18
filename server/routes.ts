@@ -490,11 +490,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SECURE: Server-side profile creation endpoint
   app.post('/api/users/create-profile', authenticateToken, async (req, res) => {
     try {
-      const { first_name, last_name, email } = req.body;
+      const { first_name, last_name } = req.body;
       
-      // Validate required fields
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+      // Security: Use email from authenticated token, not client request
+      const userEmail = req.user!.email;
+      if (!userEmail) {
+        return res.status(400).json({ error: 'User email not available from authentication' });
       }
       
       // Use the database function to ensure user profile exists
@@ -502,7 +503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await pgClient`
         SELECT * FROM public.ensure_user_profile(
           ${req.user!.userId},
-          ${email},
+          ${userEmail},
           ${first_name || ''},
           ${last_name || ''}
         )
