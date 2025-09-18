@@ -80,64 +80,67 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.log('🔍 Auth user result:', authUser ? 'Found user' : 'No user', authUser?.id);
       
       if (authUser) {
-        let profileData = null;
-        
-        try {
-          profileData = await getUserProfile(authUser.id);
-          
-          // If no profile exists, create one automatically for new users
-          if (!profileData) {
-            console.log('User profile not found, attempting to create...');
-            try {
-              profileData = await createUserProfile({
-                email: authUser.email || '',
-                first_name: authUser.user_metadata?.first_name || 'User',
-                last_name: authUser.user_metadata?.last_name || '',
-              });
-              console.log('Profile created successfully');
-            } catch (createError) {
-              console.error('Failed to create user profile:', createError);
-              // Continue with null profileData but still set user from auth data
-            }
-          }
-        } catch (profileError) {
-          console.error('Error getting/creating profile:', profileError);
-          // Continue with null profileData but still set user from auth data
-        }
-        
-        setProfile(profileData);
-        
-        // CRITICAL FIX: Always create user object from auth data, regardless of profile success/failure
-        const combinedUser: CombinedUser = {
+        // Create basic user object first to prevent null state
+        const basicUser: CombinedUser = {
           id: authUser.id,
           email: authUser.email || '',
-          firstName: profileData?.first_name || authUser.user_metadata?.first_name || 'User',
-          lastName: profileData?.last_name || authUser.user_metadata?.last_name || '',
-          phone: profileData?.phone || undefined,
-          school: profileData?.school || undefined,
-          studentId: profileData?.student_id || undefined,
-          role: profileData?.role || 'student',
-          profilePicture: profileData?.profile_picture || undefined,
-          referralCode: profileData?.referral_code || undefined,
-          referralPoints: profileData?.referral_points || 0,
-          totalPaid: profileData?.total_paid || 0,
-          totalOwed: profileData?.total_owed || 0,
-          isActive: profileData?.is_active ?? true,
-          createdAt: profileData?.created_at || authUser.created_at,
-          updatedAt: profileData?.updated_at || undefined,
-          isAdmin: profileData?.role === 'admin',
-          // Additional properties for compatibility
-          displayName: profileData?.first_name && profileData?.last_name 
-            ? `${profileData.first_name} ${profileData.last_name}` 
-            : authUser.user_metadata?.full_name || 'User',
-          points: profileData?.referral_points || 0,
-          avatarUrl: profileData?.profile_picture || authUser.user_metadata?.avatar_url || undefined
+          firstName: authUser.user_metadata?.first_name || 'User',
+          lastName: authUser.user_metadata?.last_name || '',
+          phone: undefined,
+          school: undefined,
+          studentId: undefined,
+          role: 'student', // Default role
+          profilePicture: undefined,
+          referralCode: undefined,
+          referralPoints: 0,
+          totalPaid: 0,
+          totalOwed: 0,
+          isActive: true,
+          createdAt: authUser.created_at,
+          updatedAt: undefined,
+          isAdmin: false,
+          displayName: authUser.user_metadata?.full_name || 'User',
+          points: 0,
+          avatarUrl: authUser.user_metadata?.avatar_url || undefined
         };
         
-        console.log('Setting user object in AuthContext:', combinedUser.id, combinedUser.email, 'Role:', combinedUser.role);
-        setUser(combinedUser);
+        // Set basic user immediately to prevent null state
+        setUser(basicUser);
+        console.log('✅ Set basic user object:', authUser.id, authUser.email);
+        
+        // Now try to get profile data to enhance the user object
+        try {
+          console.log('🔍 Fetching user profile...');
+          const profileData = await getUserProfile(authUser.id);
+          console.log('🔍 Profile result:', profileData ? 'Found profile' : 'No profile');
+          
+          if (profileData) {
+            // Update user with profile data
+            const enhancedUser: CombinedUser = {
+              ...basicUser,
+              firstName: profileData.first_name || basicUser.firstName,
+              lastName: profileData.last_name || basicUser.lastName,
+              phone: profileData.phone || undefined,
+              school: profileData.school || undefined,
+              studentId: profileData.student_id || undefined,
+              role: profileData.role || 'student',
+              isAdmin: profileData.role === 'admin',
+              displayName: profileData.first_name && profileData.last_name 
+                ? `${profileData.first_name} ${profileData.last_name}` 
+                : basicUser.displayName,
+            };
+            
+            setUser(enhancedUser);
+            setProfile(profileData);
+            console.log('✅ Enhanced user with profile data. Role:', enhancedUser.role);
+          } else {
+            console.log('❌ No profile found, keeping basic user');
+          }
+        } catch (profileError) {
+          console.error('❌ Error fetching profile, keeping basic user:', profileError);
+        }
       } else {
-        console.log('No authenticated user found, clearing state');
+        console.log('❌ No authenticated user found, clearing state');
         setProfile(null);
         setUser(null);
       }
