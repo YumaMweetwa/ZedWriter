@@ -20,6 +20,9 @@ const client = postgres(connectionString, {
 // Create drizzle instance
 export const db = drizzle(client, { schema });
 
+// Export the postgres client for raw SQL queries
+export const pgClient = client;
+
 // Test connection
 export async function testConnection() {
   try {

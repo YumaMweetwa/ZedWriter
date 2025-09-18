@@ -11,6 +11,7 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { createClient } from '@supabase/supabase-js';
+import { db, pgClient } from './db';
 
 // WebSocket message validation schemas
 const wsMessageSchema = z.object({
@@ -496,54 +497,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Email is required' });
       }
       
-      // Security: Use authenticated user's ID and set role securely on server
-      const userData = {
-        id: req.user!.userId,
-        email: email,
-        firstName: first_name || null,
-        lastName: last_name || null,
-        role: 'student', // SECURE: Server-controlled role assignment
-        isActive: true,
-        referralPoints: 0,
-        totalPaid: 0,
-        totalOwed: 0,
-        createdAt: new Date().toISOString()
-      };
+      // Use the database function to ensure user profile exists
+      // This handles both creation and updates seamlessly
+      const result = await pgClient`
+        SELECT * FROM public.ensure_user_profile(
+          ${req.user!.userId},
+          ${email},
+          ${first_name || ''},
+          ${last_name || ''}
+        )
+      `;
       
-      const user = await storage.createUser(userData);
+      if (!result || result.length === 0) {
+        throw new Error('Failed to create or retrieve user profile');
+      }
       
-      // Convert camelCase response to snake_case for client compatibility
+      const user = result[0] as any;
+      
+      // Convert response to snake_case for client compatibility
       const userResponse = {
         id: user.id,
         email: user.email,
-        first_name: user.firstName,
-        last_name: user.lastName,
-        student_id: user.studentId,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        student_id: user.student_id,
         phone: user.phone,
         school: user.school,
         role: user.role,
-        profile_picture: user.profilePicture,
-        referral_code: user.referralCode,
-        referral_points: user.referralPoints,
-        total_paid: user.totalPaid,
-        total_owed: user.totalOwed,
-        is_active: user.isActive,
-        created_at: user.createdAt,
-        updated_at: user.updatedAt,
+        profile_picture: user.profile_picture,
+        referral_code: user.referral_code,
+        referral_points: user.referral_points,
+        total_paid: user.total_paid,
+        total_owed: user.total_owed,
+        is_active: user.is_active,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
       };
       
       res.status(201).json(userResponse);
     } catch (error) {
       console.error('Error creating user profile:', error);
-      // Check for various "already exists" error patterns
-      if (error instanceof Error) {
-        const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('already exists') || 
-            errorMessage.includes('duplicate key') || 
-            errorMessage.includes('unique constraint')) {
-          return res.status(409).json({ error: 'User profile already exists' });
-        }
-      }
       res.status(500).json({ error: 'Failed to create user profile' });
     }
   });
